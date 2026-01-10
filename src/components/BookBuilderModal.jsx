@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
-import { bulkAddPagesAtom, resetBookAtom } from '@/store/atoms';
+// FIX: Correct path for components folder
+import { bulkAddPagesAtom, resetBookAtom } from '../store/atoms';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -11,12 +12,11 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
   const [, bulkAddPages] = useAtom(bulkAddPagesAtom);
   const [, resetBook] = useAtom(resetBookAtom);
   
-  // Inputs
   const [coverTitle, setCoverTitle] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [urls, setUrls] = useState('');
   const [itemsPerPage, setItemsPerPage] = useState(1);
-  const [shouldReset, setShouldReset] = useState(true); // Default to wiping old book
+  const [shouldReset, setShouldReset] = useState(true);
   
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -41,43 +41,41 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => {
-        console.warn('Failed to load, trying proxy...', url);
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
         const retry = new Image();
         retry.crossOrigin = 'anonymous';
         retry.onload = () => resolve(retry);
-        retry.onerror = () => resolve(null); // Resolve null on fail, don't crash
+        retry.onerror = () => resolve(null);
         retry.src = proxyUrl;
       };
       img.src = processUrl(url);
     });
   };
 
-  // --- Layout Engine (Same Grid Logic) ---
   const generateLayout = async (images, fabricCanvas, title = null) => {
     fabricCanvas.clear();
     fabricCanvas.backgroundColor = '#ffffff';
 
-    // Grid Config
     const padding = 40;
     const safeW = PAGE_W - (padding * 2);
     const safeH = PAGE_H - (padding * 2);
     
-    // If it's a title page (Cover)
+    // Title Logic (Burned into texture for Cover)
     if (title) {
         const titleObj = new fabric.IText(title, {
             left: PAGE_W / 2,
-            top: 150,
+            top: 200,
             originX: 'center',
             fontSize: 60,
             fontFamily: 'Arial',
-            fill: '#333'
+            fontWeight: 'bold',
+            fill: '#000000'
         });
         fabricCanvas.add(titleObj);
     }
 
     const gridConfig = {
-      1: [{ x: 0, y: title ? 0.2 : 0, w: 1, h: title ? 0.8 : 1 }],
+      1: [{ x: 0, y: title ? 0.3 : 0, w: 1, h: title ? 0.7 : 1 }],
       2: [{ x: 0, y: 0, w: 1, h: 0.5 }, { x: 0, y: 0.5, w: 1, h: 0.5 }],
       4: [{ x: 0,y:0,w:0.5,h:0.5 }, { x:0.5,y:0,w:0.5,h:0.5 }, { x:0,y:0.5,w:0.5,h:0.5 }, { x:0.5,y:0.5,w:0.5,h:0.5 }]
     };
@@ -105,12 +103,11 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     fabricCanvas.renderAll();
     const scaleMultiplier = ACTUAL_W / PAGE_W;
     return {
-      texture: fabricCanvas.toDataURL({ format: 'png', quality: 0.8, multiplier: scaleMultiplier }),
+      texture: fabricCanvas.toDataURL({ format: 'png', quality: 0.9, multiplier: scaleMultiplier }),
       fabricJSON: fabricCanvas.toJSON(['videoMetadata', 'isVideo'])
     };
   };
 
-  // --- Build Process ---
   const handleBuild = async () => {
     setIsProcessing(true);
     setStatus('Initializing...');
@@ -119,106 +116,56 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     const urlList = urls.match(/(https?:\/\/[^\s]+)/g) || [];
     
     try {
-      // 1. Reset Book if requested
-      if (shouldReset) {
-        resetBook({ coverUrl: null }); // Clear everything first
-      }
-
-      const generatedPages = [];
-      
-      // 2. Generate Cover (Page 0 Front)
-      setStatus('Creating Cover...');
-      const coverImg = coverUrl ? await loadImage(coverUrl) : null;
-      const coverData = await generateLayout(coverImg ? [coverImg] : [], fCanvas, coverTitle);
-      
-      // 3. Process Content Images
+      setStatus('Loading images...');
       const contentImages = [];
       for (let i = 0; i < urlList.length; i++) {
-        setStatus(`Loading image ${i + 1}/${urlList.length}...`);
         const img = await loadImage(urlList[i]);
         if (img) contentImages.push(img);
       }
 
-      // 4. Batch images into pages (Front -> Back -> Front -> Back)
-      // Note: We already have Page 0 Front (Cover).
-      // We need to generate: Page 0 Back, Page 1 Front, Page 1 Back, etc.
-      
-      // First, create the layouts for the content
+      setStatus('Generating layouts...');
       const contentLayouts = [];
       for (let i = 0; i < contentImages.length; i += itemsPerPage) {
         const batch = contentImages.slice(i, i + itemsPerPage);
-        const layout = await generateLayout(batch, fCanvas);
-        contentLayouts.push(layout);
+        contentLayouts.push(await generateLayout(batch, fCanvas));
       }
 
-      // 5. Construct the specific Page Objects
-      // We need to merge these layouts into the Leaf structure { front, back }
+      setStatus('Creating cover...');
+      const coverImg = coverUrl ? await loadImage(coverUrl) : null;
+      const coverData = await generateLayout(coverImg ? [coverImg] : [], fCanvas, coverTitle);
       
-      // Start with the Cover we just made
-      let currentLeaf = {
-        front: coverData, // Page 0 Front
-        back: null        // Page 0 Back (Inside Left) - Waiting for content
-      };
-
-      // Distribute content layouts
-      for (let i = 0; i < contentLayouts.length; i++) {
-        if (!currentLeaf.back) {
-          // Fill Inside Left (Page 0 Back, Page 1 Back, etc)
-          currentLeaf.back = contentLayouts[i];
-          
-          // Leaf is full! Push it.
-          generatedPages.push(currentLeaf);
-          
-          // Start new Leaf
-          currentLeaf = { front: null, back: null };
-        } else {
-          // Fill Inside Right (Page 1 Front, etc)
-          currentLeaf.front = contentLayouts[i];
-        }
+      if (shouldReset) {
+        resetBook({ coverUrl: null }); 
       }
 
-      // Handle dangling leaf (if we ended on a Front page)
-      if (currentLeaf.front || currentLeaf.back) {
-         // If we have a front but no back (unlikely due to logic above, but possible if odd number)
-         // OR if we started a new leaf and filled 'front' (Wait, logic above fills Back first for continuity)
-         
-         // Let's simplify:
-         // The loop logic above fills Back then pushes.
-         // If we have data in 'front' that hasn't been pushed:
-         if (currentLeaf.front) {
-             // We need a back for this front
-             currentLeaf.back = await generateLayout([], fCanvas); // Blank back
-             generatedPages.push(currentLeaf);
-         }
-         // If we have a 'back' filled but not pushed (wait, loop pushes immediately on back fill)
+      // --- LOGIC FIX: LEFT/RIGHT ORDERING ---
+      const newLeaves = [];
+
+      // LEAF 0: Front Cover + Page 1 (Left)
+      // Front: Cover (Right Side when closed, becomes Right when viewing cover)
+      // Back: Inside Left (First page of content)
+      newLeaves.push({
+        front: coverData,         
+        back: contentLayouts[0] || null 
+      });
+
+      // Remaining Layouts start from index 1
+      // LEAF 1: Page 2 (Right) + Page 3 (Left)
+      // LEAF 2: Page 4 (Right) + Page 5 (Left)
+      let layoutIndex = 1;
+      while (layoutIndex < contentLayouts.length) {
+        const rightPageData = contentLayouts[layoutIndex]; 
+        const leftPageData = contentLayouts[layoutIndex + 1]; 
+        
+        newLeaves.push({
+          front: rightPageData || null, // Right Page
+          back: leftPageData || null    // Left Page (Back of the Right page)
+        });
+        
+        layoutIndex += 2;
       }
 
-      // Special Case: If we only had 1 image, it went to Cover.
-      // If we had Cover + 1 image:
-      // Cover -> Front. Image -> Back. Pushed. Done.
-
-      // If we have content left over that didn't fit into a "Back" slot?
-      // Actually, standard books read: Cover(Right) -> Turn -> Left/Right.
-      // My logic above: 
-      // 1. Set Cover (Right).
-      // 2. Loop contents. 
-      //    Layout 1 -> Back (Left). Push Leaf.
-      //    Layout 2 -> Front (Right).
-      //    Layout 3 -> Back (Left). Push Leaf.
-      
-      // If we end with a Front (Right) that isn't pushed:
-      if (currentLeaf.front && !currentLeaf.back) {
-         // This is a "dangling" right page. It needs a back to be a valid leaf?
-         // No, in this array structure, we push leaves.
-         // If currentLeaf = { front: data, back: null }, we haven't pushed it.
-         generatedPages.push({
-             front: currentLeaf.front,
-             back: await generateLayout([], fCanvas) // Empty back
-         });
-      }
-
-      // 6. Update Atom
-      bulkAddPages(generatedPages); // This atom needs to accept {front, back} objects
+      bulkAddPages(newLeaves);
       
       setStatus('✅ Done!');
       setTimeout(() => { onClose(); setIsProcessing(false); setUrls(''); }, 1000);
@@ -239,47 +186,27 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           Book Wizard
         </h2>
 
-        {/* Section 1: Cover */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
           <h3 className="font-bold text-gray-700 mb-3">1. Cover Setup</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Book Title</label>
-                <input 
-                    type="text" 
-                    className="w-full p-2 border rounded text-sm"
-                    placeholder="My Portfolio"
-                    value={coverTitle}
-                    onChange={e => setCoverTitle(e.target.value)}
-                />
+                <input type="text" className="w-full p-2 border rounded text-sm" value={coverTitle} onChange={e => setCoverTitle(e.target.value)} />
             </div>
             <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cover Image URL</label>
-                <input 
-                    type="text" 
-                    className="w-full p-2 border rounded text-sm"
-                    placeholder="https://..."
-                    value={coverUrl}
-                    onChange={e => setCoverUrl(e.target.value)}
-                />
+                <input type="text" className="w-full p-2 border rounded text-sm" value={coverUrl} onChange={e => setCoverUrl(e.target.value)} />
             </div>
           </div>
         </div>
 
-        {/* Section 2: Content */}
         <div className="mb-6">
           <h3 className="font-bold text-gray-700 mb-3">2. Add Pages</h3>
           <div className="flex justify-between mb-2">
             <label className="text-xs font-medium text-gray-500 uppercase">Image URLs (Bulk)</label>
             <div className="flex gap-2">
                 {[1, 2, 4].map(n => (
-                    <button 
-                        key={n} 
-                        onClick={() => setItemsPerPage(n)}
-                        className={`text-xs px-2 py-1 rounded border ${itemsPerPage === n ? 'bg-purple-600 text-white' : 'bg-white text-gray-600'}`}
-                    >
-                        {n} per page
-                    </button>
+                    <button key={n} onClick={() => setItemsPerPage(n)} className={`text-xs px-2 py-1 rounded border ${itemsPerPage === n ? 'bg-purple-600 text-white' : 'bg-white text-gray-600'}`}>{n} per page</button>
                 ))}
             </div>
           </div>
@@ -291,34 +218,20 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           />
         </div>
 
-        {/* Section 3: Options */}
         <div className="flex items-center gap-2 mb-6">
-            <input 
-                type="checkbox" 
-                id="reset" 
-                checked={shouldReset} 
-                onChange={e => setShouldReset(e.target.checked)} 
-            />
+            <input type="checkbox" id="reset" checked={shouldReset} onChange={e => setShouldReset(e.target.checked)} />
             <label htmlFor="reset" className="text-sm text-gray-700">Start a new book (Delete existing pages)</label>
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-        {/* Footer */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm font-medium text-purple-600 animate-pulse">{status}</div>
           <div className="flex gap-3">
             <button onClick={onClose} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-            <button 
-              onClick={handleBuild}
-              disabled={isProcessing}
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium"
-            >
-              {isProcessing ? 'Generating...' : 'Create Book'}
-            </button>
+            <button onClick={handleBuild} disabled={isProcessing} className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium">{isProcessing ? 'Generating...' : 'Create Book'}</button>
           </div>
         </div>
-
       </div>
     </div>
   );
