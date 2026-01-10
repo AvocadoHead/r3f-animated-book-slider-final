@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { useAtom } from 'jotai';
-import { clipboardAtom, resetBookAtom } from '@/store/atoms'; 
+import { clipboardAtom } from '../../store/atoms'; 
 import { FrameOverlay } from './FrameOverlay';
 
 const PAGE_DIMENSIONS = {
@@ -15,9 +15,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
   const canvasRef = useRef(null);
   const fabricCanvasRef = useRef(null);
   const [clipboard, setClipboard] = useAtom(clipboardAtom);
-  const [, resetBook] = useAtom(resetBookAtom); // For "Make Cover" logic (optional)
-  
-  const [selectedObject, setSelectedObject] = useState(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,7 +24,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: PAGE_DIMENSIONS.width,
       height: PAGE_DIMENSIONS.height,
-      backgroundColor: '#ffffff',
+      backgroundColor: '#ffffff', 
       preserveObjectStacking: true,
     });
 
@@ -36,72 +33,51 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
     const loadContent = () => {
         setIsLoading(true);
 
-        // STRATEGY 1: Try JSON
+        // 1. Try to load editable objects (JSON)
         if (initialData?.fabricJSON && Object.keys(initialData.fabricJSON).length > 0) {
             canvas.loadFromJSON(initialData.fabricJSON, () => {
-                const objects = canvas.getObjects();
-                // FIX: If JSON loaded but resulted in 0 objects (often happens with DataURL issues), fallback!
-                if (objects.length === 0 && initialData.texture) {
-                    console.log("JSON loaded empty, falling back to texture...");
-                    loadBackUpTexture();
-                } else {
-                    canvas.renderAll();
-                    setIsLoading(false);
-                }
+                // Even if we load JSON objects, we ensure the background texture is set if available
+                if (initialData.texture) setBackground(initialData.texture);
+                canvas.renderAll();
+                setIsLoading(false);
             }, (o, obj) => {
                 if (obj.type === 'image') obj.set({ crossOrigin: 'anonymous' });
             });
         } 
-        // STRATEGY 2: No JSON? Load Texture as Image
+        // 2. If no JSON, just load the flat texture as background
         else if (initialData?.texture) {
-            loadBackUpTexture();
+            setBackground(initialData.texture);
         } else {
             setIsLoading(false);
         }
     };
 
-    const loadBackUpTexture = () => {
-        if (!initialData.texture) return;
-        // Don't load white blank textures as images
-        if (initialData.texture.length < 5000 && initialData.texture.includes('data:image')) {
-            // Likely a blank pixel, skip
+    // Helper: Sets the flattened image as the immutable background
+    const setBackground = (url) => {
+        // Avoid setting 1x1 white pixels as background
+        if (url.length < 5000 && url.includes('base64')) {
             setIsLoading(false);
             return;
         }
 
-        fabric.Image.fromURL(initialData.texture, (img) => {
-            if (!img) { setIsLoading(false); return; }
+        fabric.Image.fromURL(url, (img) => {
+            if (!canvas || !img) { setIsLoading(false); return; }
             
-            // Center the flattened image
-            // We lock it so it acts like a background
-            img.scaleToWidth(PAGE_DIMENSIONS.width);
-            img.set({ 
-                left: 0, 
-                top: 0, 
-                selectable: false, 
-                evented: false,
-                opacity: 1 
+            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+                scaleX: PAGE_DIMENSIONS.width / img.width,
+                scaleY: PAGE_DIMENSIONS.height / img.height,
+                originX: 'left',
+                originY: 'top'
             });
-            canvas.add(img);
-            canvas.sendToBack(img);
-            canvas.renderAll();
             setIsLoading(false);
-            setStatus('Loaded flattened image');
-            setTimeout(() => setStatus(''), 2000);
         }, { crossOrigin: 'anonymous' });
     };
 
     loadContent();
-
-    // Event Listeners
-    canvas.on('selection:created', (e) => setSelectedObject(e.selected[0]));
-    canvas.on('selection:updated', (e) => setSelectedObject(e.selected[0]));
-    canvas.on('selection:cleared', () => setSelectedObject(null));
-
     return () => { canvas.dispose(); };
   }, [initialData]);
 
-  // ... (Copy, Paste, Undo, Redo, AddText, AddImage logic is same as before)
+  // --- Tools ---
   const copyObject = useCallback(async () => {
     if (!fabricCanvasRef.current) return;
     const active = fabricCanvasRef.current.getActiveObject();
@@ -161,18 +137,18 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col" style={{ width: PAGE_DIMENSIONS.width + 150, height: '95vh' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col" style={{ width: PAGE_DIMENSIONS.width + 100, height: '95vh' }}>
         
         {/* Header */}
-        <div className="bg-gray-900 text-white p-3 flex justify-between items-center">
+        <div className="bg-gray-800 text-white p-3 flex justify-between items-center">
           <div className="font-bold">Page Editor</div>
           <div className="text-sm text-yellow-400">{status}</div>
           <button onClick={onClose} className="text-xl hover:text-red-400">✕</button>
         </div>
 
         {/* Toolbar */}
-        <div className="bg-gray-100 p-2 flex gap-2 border-b justify-center">
+        <div className="bg-gray-100 p-2 flex gap-2 border-b justify-center flex-wrap">
            <button onClick={addText} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">📝 Text</button>
            <button onClick={addImageFromUrl} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">🖼️ Image</button>
            <div className="w-px bg-gray-300 mx-1"/>
@@ -182,9 +158,9 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
            <button onClick={deleteSelected} className="px-3 py-1 text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100">🗑️ Delete</button>
         </div>
 
-        {/* Canvas */}
-        <div className="flex-1 bg-gray-200 overflow-auto flex justify-center p-8">
-           <div className="relative shadow-2xl">
+        {/* Canvas Area */}
+        <div className="flex-1 bg-gray-600 overflow-auto flex justify-center p-8">
+           <div className="relative shadow-2xl bg-white">
               <canvas ref={canvasRef} />
               <FrameOverlay width={PAGE_DIMENSIONS.width} height={PAGE_DIMENSIONS.height} />
            </div>
@@ -193,7 +169,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
         {/* Footer */}
         <div className="p-4 bg-white border-t flex justify-between items-center">
             <div className="text-xs text-gray-500">
-                Tip: "Page 1" is the Right side. "Page 2" is the Left side (Back).
+                You are editing one side of a page.
             </div>
             <div className="flex gap-2">
                 <button onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
