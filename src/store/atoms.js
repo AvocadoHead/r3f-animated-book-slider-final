@@ -17,7 +17,7 @@ export const createBlankTexture = () => {
 };
 
 // --- Initial Data ---
-// Clean start: Cover + 1 Page
+
 const initialPages = [
   {
     id: generatePageId(),
@@ -35,13 +35,17 @@ const initialPages = [
 
 // --- Atoms ---
 
+// 1. Core State (Memory only to avoid Quota errors)
 export const bookPagesAtom = atom(initialPages);
 export const currentPageAtom = atom(0);
 export const editModeAtom = atom(false);
 export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
 
-// Derived atom for 3D Book
+// 2. Clipboard (This was missing!)
+export const clipboardAtom = atom(null);
+
+// 3. Derived State
 export const bookDataAtom = atom((get) => {
   const pages = get(bookPagesAtom);
   return pages.map(page => ({
@@ -106,23 +110,21 @@ export const updatePageAtom = atom(
   }
 );
 
-// --- CRITICAL FIX HERE ---
 export const bulkAddPagesAtom = atom(
   null,
   (get, set, newLeaves) => {
     const currentPages = get(bookPagesAtom);
     
-    // Map the incoming { front, back } objects correctly
     const newPageObjects = newLeaves.map((leaf, index) => ({
       id: generatePageId(),
       pageNumber: currentPages.length + index,
       front: {
-        texture: leaf.front?.texture || createBlankTexture(), // Fallback if missing
+        texture: leaf.front?.texture || createBlankTexture(),
         fabricJSON: leaf.front?.fabricJSON || null,
         type: 'page'
       },
       back: {
-        texture: leaf.back?.texture || createBlankTexture(), // Fallback if missing
+        texture: leaf.back?.texture || createBlankTexture(),
         fabricJSON: leaf.back?.fabricJSON || null,
         type: 'page'
       }
@@ -145,7 +147,6 @@ export const resetBookAtom = atom(
       back: { texture: blank, type: 'page' }
     };
     
-    // Ensure we have at least one back cover leaf
     const backCover = {
       id: generatePageId(),
       pageNumber: 1,
