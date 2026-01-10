@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { useAtom } from 'jotai';
-// CORRECT IMPORT: Up 2 levels from 'src/components/editor/'
 import { clipboardAtom } from '../../store/atoms'; 
 import { FrameOverlay } from './FrameOverlay';
 
@@ -12,7 +11,7 @@ const PAGE_DIMENSIONS = {
   actualHeight: 1771,
 };
 
-const FONTS = ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Impact'];
+const FONTS = ['Heebo', 'Rubik', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
 
 export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigate }) => {
   const canvasRef = useRef(null);
@@ -20,13 +19,11 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   const [clipboard, setClipboard] = useAtom(clipboardAtom);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [fontFamily, setFontFamily] = useState('Arial');
+  const [fontFamily, setFontFamily] = useState('Heebo');
   
-  // History
   const [history, setHistory] = useState([]);
   const [historyStep, setHistoryStep] = useState(-1);
 
-  // Helper: Process Drive Links
   const processUrl = (url) => {
     if (!url) return null;
     const cleanUrl = url.trim();
@@ -37,7 +34,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
     return cleanUrl;
   };
 
-  // Init
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
 
@@ -59,7 +55,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
     return () => { canvas.dispose(); };
   }, []);
 
-  // Update content when page changes
   useEffect(() => {
     if (fabricCanvasRef.current) {
         fabricCanvasRef.current.clear();
@@ -119,22 +114,19 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
                       left:0, top:0, 
                       scaleX: PAGE_DIMENSIONS.width/bgImg.width, 
                       scaleY: PAGE_DIMENSIONS.height/bgImg.height, 
-                      selectable:false 
+                      selectable:false,
+                      excludeFromExport: true 
                   });
                   
                   fabricCanvasRef.current.add(bgImg);
                   fabricCanvasRef.current.sendToBack(bgImg);
                   
-                  try {
-                      const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
-                      const dataUrl = fabricCanvasRef.current.toDataURL({ format:'png', multiplier, quality:0.9 });
-                      fabricCanvasRef.current.remove(bgImg);
-                      finishSave(json, dataUrl);
-                  } catch (e) {
-                      alert("Canvas Tainted (Security Error). Saving layers only.");
-                      fabricCanvasRef.current.remove(bgImg);
-                      finishSave(json, null);
-                  }
+                  const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
+                  // Export to PNG
+                  const dataUrl = fabricCanvasRef.current.toDataURL({ format:'png', multiplier, quality:0.9 });
+                  
+                  fabricCanvasRef.current.remove(bgImg);
+                  finishSave(json, dataUrl);
               }, { crossOrigin: 'anonymous' });
           } else {
               const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
@@ -144,10 +136,12 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
       } catch (err) {
           console.error(err);
           setIsLoading(false);
+          setStatus("Error saving");
       }
   };
 
   const finishSave = (json, texture) => {
+      // Pass both the JSON (for future edits) and Texture (for 3D display)
       onSave({ texture: texture || initialData.texture, fabricJSON: json });
       setIsLoading(false);
       setStatus('Saved!');
@@ -155,7 +149,15 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   };
 
   const addText = useCallback(() => {
-    const t = new fabric.IText('Type Here', { left: 100, top: 100, fontSize: 40, fontFamily: fontFamily });
+    if(!fabricCanvasRef.current) return;
+    const t = new fabric.IText('טקסט לדוגמה', { 
+        left: 200, 
+        top: 200, 
+        fontSize: 40, 
+        fontFamily: fontFamily,
+        fill: '#000000',
+        direction: 'rtl' // Better for Hebrew
+    });
     fabricCanvasRef.current.add(t);
     fabricCanvasRef.current.setActiveObject(t);
     saveHistory();
@@ -165,10 +167,15 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
      let url = prompt("Image URL (Direct link or Google Drive):");
      if(url) {
          url = processUrl(url);
+         setIsLoading(true);
          fabric.Image.fromURL(url, (img)=>{
+             setIsLoading(false);
              if(!img) { alert("Could not load image"); return; }
-             img.scaleToWidth(300);
-             img.set({ left: 250, top: 250 });
+             
+             // Scale down if too big
+             if (img.width > 400) img.scaleToWidth(400);
+             
+             img.set({ left: 200, top: 200 });
              fabricCanvasRef.current.add(img);
              fabricCanvasRef.current.setActiveObject(img);
              saveHistory();
@@ -182,7 +189,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   }, [setClipboard]);
 
   const pasteObject = useCallback(async () => {
-    if (!clipboard) return;
+    if (!clipboard || !fabricCanvasRef.current) return;
     const cloned = await clipboard.clone();
     cloned.set({ left: cloned.left+20, top: cloned.top+20, evented:true });
     if(cloned.type==='activeSelection') { cloned.canvas=fabricCanvasRef.current; cloned.forEachObject(o=>fabricCanvasRef.current.add(o)); cloned.setCoords(); }
@@ -201,6 +208,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col" style={{ width: PAGE_DIMENSIONS.width + 100, height: '95vh' }}>
         
+        {/* Header */}
         <div className="bg-gray-800 text-white p-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <button onClick={() => onNavigate(-1)} className="hover:bg-gray-700 px-3 py-1 rounded text-sm">← Prev Side</button>
@@ -216,11 +224,12 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
           </div>
         </div>
 
+        {/* Tools */}
         <div className="bg-gray-100 p-2 flex gap-2 border-b justify-center flex-wrap items-center">
            <select 
              value={fontFamily} 
              onChange={(e) => setFontFamily(e.target.value)}
-             className="px-2 py-1 border rounded text-sm h-8"
+             className="px-2 py-1 border rounded text-sm h-8 w-32"
            >
              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
            </select>
@@ -234,6 +243,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
            <button onClick={deleteSelected} className="px-3 py-1 text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 text-sm">Del</button>
         </div>
 
+        {/* Canvas */}
         <div className="flex-1 bg-gray-600 overflow-auto flex justify-center p-8">
            <div className="relative shadow-2xl bg-white" 
                 style={{ 
@@ -251,8 +261,10 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
         </div>
 
         <div className="p-4 bg-white border-t flex justify-end gap-2">
-            <button onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Close</button>
-            <button onClick={handleSave} className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold">{isLoading ? 'Saving...' : 'Save & Close'}</button>
+            <button onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+            <button onClick={handleSave} className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold">
+                {isLoading ? 'Saving...' : 'Save & Close'}
+            </button>
         </div>
       </div>
     </div>
