@@ -2,7 +2,7 @@ import { useAtom } from "jotai";
 import { useEffect, useState, useRef } from "react";
 import { 
   bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom, 
-  setBookPagesAtom, currentBookIdAtom, builderDataAtom, addPageAtom // Added addPageAtom
+  setBookPagesAtom, currentBookIdAtom, builderDataAtom, addPageAtom 
 } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
@@ -10,16 +10,17 @@ import { ResetBookModal } from "./ResetBookModal";
 import { BookListModal } from "./BookListModal";
 import { supabase } from "../lib/supabase"; 
 import { AuthButton } from './AuthButton';
-import { useAuth } from "../hooks/useAuth"; // NEW: Import Hook
+// Ensure you created the hooks folder!
+import { useAuth } from "../hooks/useAuth"; 
 
 const translations = {
   en: { 
     editPage: 'Edit Page', library: 'My Library', bookBuilder: 'Book Builder', 
-    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page' 
+    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page'
   },
   he: { 
     editPage: 'ערוך עמוד', library: 'הספרייה שלי', bookBuilder: 'בנה ספר', 
-    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד' 
+    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד'
   }
 };
 
@@ -31,8 +32,8 @@ export const UI = () => {
   const [builderData] = useAtom(builderDataAtom);
   const [editorOpen, setEditorOpen] = useAtom(editModeAtom);
   const [, updatePage] = useAtom(updatePageAtom);
-  const [, addPage] = useAtom(addPageAtom);
   const [, setBookPages] = useAtom(setBookPagesAtom);
+  const [, addPage] = useAtom(addPageAtom);
   const [language, setLanguage] = useAtom(languageAtom);
 
   // Local State
@@ -43,19 +44,14 @@ export const UI = () => {
   const [menuOpen, setMenuOpen] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
   
-  // Custom Hooks
-  const { user, loading: authLoading } = useAuth(); // Use the Hook!
+  // Custom Auth Hook - This fixes the "Button doesn't update" issue
+  const { user } = useAuth();
   
   const videoRef = useRef(null);
   const t = translations[language];
 
   // --- DB Sync Logic ---
-  const loadBookFromDB = async (userId) => {
-    // Only load if we haven't loaded a book yet (pages length is default 2)
-    // or logic to auto-resume could go here.
-    // For now, we wait for user to click "My Library".
-  };
-
+  
   const saveBookToDB = async () => {
     if (!user) return;
     setIsSyncing(true);
@@ -77,14 +73,14 @@ export const UI = () => {
     setIsSyncing(false);
   };
 
-  // Auto-save logic
+  // Auto-save
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => saveBookToDB(), 3000);
     return () => clearTimeout(timer);
   }, [pages, user]);
 
-  // Clean URL hash on login success
+  // Clear Hash (Cleanup URL after login)
   useEffect(() => {
     if (user && window.location.hash.includes('access_token')) {
         window.history.replaceState(null, '', window.location.pathname);
@@ -104,17 +100,23 @@ export const UI = () => {
     window.location.reload();
   };
 
-  // --- Editor Logic ---
-  const loadEditorFor = (pageIndex, side) => {
-    if (pageIndex < 0 || pageIndex >= pages.length) return;
-    setEditingPage({ pageId: pages[pageIndex].id, side, pageNumber: pageIndex, data: pages[pageIndex][side] });
-    setEditorOpen(true);
+  // --- Action Handlers ---
+  const handleAddPage = () => {
+      addPage(); // Use Atom Action
+      setPage(pages.length); // Go to new page
+      setMenuOpen(false);
   };
 
   const handleEditCurrentPage = () => {
     if (page === 0) loadEditorFor(0, 'front');
     else if (page === pages.length) loadEditorFor(pages.length - 1, 'back');
     else loadEditorFor(page, 'front'); 
+  };
+
+  const loadEditorFor = (pageIndex, side) => {
+    if (pageIndex < 0 || pageIndex >= pages.length) return;
+    setEditingPage({ pageId: pages[pageIndex].id, side, pageNumber: pageIndex, data: pages[pageIndex][side] });
+    setEditorOpen(true);
   };
 
   const handleEditorNavigation = (direction) => {
@@ -129,12 +131,6 @@ export const UI = () => {
     if (editingPage) updatePage({ pageId: editingPage.pageId, side: editingPage.side, texture: savedData.texture, fabricJSON: savedData.fabricJSON });
   };
 
-  const handleAddPage = () => {
-      addPage(); // Adds a new blank page at the end
-      setPage(pages.length); // Jump to new page
-      setMenuOpen(false);
-  };
-
   const getEditorLabel = () => {
     if (!editingPage) return '';
     if (editingPage.pageNumber === 0) return 'Front Cover';
@@ -145,7 +141,7 @@ export const UI = () => {
   useEffect(() => { const audio = new Audio("/audios/page-flip-01a.mp3"); audio.play().catch(()=>{}); }, [page]);
   useEffect(() => { if (videoRef.current) videoRef.current.play().catch(()=>{}); }, []);
 
-  // --- Components ---
+  // --- Helper Component ---
   const MenuButton = ({ onClick, icon, label, danger = false }) => (
     <button 
       onClick={onClick}
@@ -160,6 +156,7 @@ export const UI = () => {
 
   return (
     <>
+      {/* Video */}
       <div className="fixed top-10 left-10 pointer-events-auto z-10 hidden md:block">
         <div className="relative w-24 h-24 rounded-full overflow-hidden shadow-2xl border-4 border-white/20 opacity-80 hover:opacity-100 transition-opacity">
           <video ref={videoRef} className="w-full h-full object-cover" loop muted playsInline autoPlay><source src="/videos/Optopia Eye.mp4" type="video/mp4" /></video>
@@ -170,7 +167,7 @@ export const UI = () => {
         <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
       </a>
 
-      {/* HEADER UI */}
+      {/* HEADER */}
       <div className="fixed top-6 right-6 pointer-events-auto z-20 flex items-center gap-3">
         {isSyncing && (
           <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
@@ -179,7 +176,7 @@ export const UI = () => {
           </div>
         )}
 
-        {/* Edit Page - Show ONLY if User is logged in */}
+        {/* Edit Button - Visible ONLY when logged in */}
         {user && (
             <button 
                 className="group flex items-center gap-2 bg-white text-gray-900 px-5 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95"
@@ -190,7 +187,7 @@ export const UI = () => {
             </button>
         )}
 
-        {/* Hamburger */}
+        {/* Hamburger Menu */}
         <div className="relative">
             <button 
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -201,52 +198,33 @@ export const UI = () => {
                 <span className="text-xl">{menuOpen ? '✕' : '☰'}</span>
             </button>
 
+            {/* Dropdown */}
             {menuOpen && (
                 <div className="absolute top-14 right-0 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right">
                     
-                    {/* User Profile / Login */}
+                    {/* User Info / Login CTA */}
                     <div className="p-4 border-b border-white/10 bg-white/5">
-                        {user ? (
-                            <div className="flex items-center gap-3">
-                                {user.user_metadata?.avatar_url ? (
-                                    <img src={user.user_metadata.avatar_url} alt="Profile" className="w-10 h-10 rounded-full border-2 border-purple-500" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
-                                        {user.email?.[0].toUpperCase()}
-                                    </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-white truncate">{user.user_metadata?.full_name || 'User'}</p>
-                                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center">
-                                <p className="text-sm text-gray-400 mb-3">Sign in to edit and save</p>
-                                <AuthButton 
-                                    language={language} 
-                                    user={user} 
-                                    onLogin={handleLogin} 
-                                    onLogout={handleLogout} 
-                                />
-                            </div>
-                        )}
+                        <AuthButton 
+                            language={language} 
+                            user={user} 
+                            onLogin={handleLogin} 
+                            onLogout={handleLogout} 
+                        />
                     </div>
 
-                    {/* Menu Actions */}
+                    {/* Menu Options - Only show tools if User is Logged In */}
                     <div className="py-2">
-                        {user && (
+                        {user ? (
                             <>
                                 <MenuButton icon="📚" label={t.library} onClick={() => { setLibraryOpen(true); setMenuOpen(false); }} />
-                                <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} /> {/* NEW BUTTON */}
+                                <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} />
                                 <MenuButton icon="🪄" label={t.bookBuilder} onClick={() => { setBuilderOpen(true); setMenuOpen(false); }} />
                                 <div className="h-px bg-white/10 mx-4 my-2" />
                                 <MenuButton icon="🗑️" label={t.newBook} onClick={() => { setResetOpen(true); setMenuOpen(false); }} danger />
                             </>
-                        )}
-                        {!user && (
+                        ) : (
                             <div className="px-4 py-3 text-center text-xs text-gray-500 italic">
-                                Read-only Mode
+                                Sign in to access tools
                             </div>
                         )}
                     </div>
@@ -259,22 +237,12 @@ export const UI = () => {
                         >
                             {language === 'en' ? '🇮🇱 Hebrew' : '🇺🇸 English'}
                         </button>
-                        
-                        {user && (
-                            <button 
-                                onClick={handleLogout}
-                                className="text-xs font-medium text-red-400 hover:text-red-300 px-3 py-1.5 transition-colors"
-                            >
-                                {t.logout}
-                            </button>
-                        )}
                     </div>
                 </div>
             )}
         </div>
       </div>
 
-      {/* Modals */}
       {editorOpen && editingPage && (
         <EditorCanvas
           initialData={editingPage.data}
@@ -289,7 +257,6 @@ export const UI = () => {
       <ResetBookModal isOpen={resetOpen} onClose={() => setResetOpen(false)} />
       <BookListModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} />
       
-      {/* Footer Nav */}
       <main className="pointer-events-none select-none z-10 fixed inset-0 flex justify-between flex-col">
         <div className="flex-1"></div>
         <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-4">
