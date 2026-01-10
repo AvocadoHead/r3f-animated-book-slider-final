@@ -2,7 +2,7 @@ import { useAtom } from "jotai";
 import { useEffect, useState, useRef } from "react";
 import { 
   bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom, 
-  setBookPagesAtom, currentBookIdAtom, builderDataAtom 
+  setBookPagesAtom, currentBookIdAtom, builderDataAtom, addPageAtom // Added addPageAtom
 } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
@@ -10,99 +10,50 @@ import { ResetBookModal } from "./ResetBookModal";
 import { BookListModal } from "./BookListModal";
 import { supabase } from "../lib/supabase"; 
 import { AuthButton } from './AuthButton';
+import { useAuth } from "../hooks/useAuth"; // NEW: Import Hook
 
 const translations = {
   en: { 
-    editPage: 'Edit Page', 
-    library: 'My Library', 
-    bookBuilder: 'Book Builder', 
-    newBook: 'New Book', 
-    login: 'Sign In with Google', 
-    logout: 'Sign Out',
-    menu: 'Menu',
-    guest: 'Guest'
+    editPage: 'Edit Page', library: 'My Library', bookBuilder: 'Book Builder', 
+    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page' 
   },
   he: { 
-    editPage: 'ערוך עמוד', 
-    library: 'הספרייה שלי', 
-    bookBuilder: 'בנה ספר', 
-    newBook: 'ספר חדש', 
-    login: 'התחבר עם גוגל', 
-    logout: 'התנתק',
-    menu: 'תפריט',
-    guest: 'אורח'
+    editPage: 'ערוך עמוד', library: 'הספרייה שלי', bookBuilder: 'בנה ספר', 
+    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד' 
   }
 };
 
 export const UI = () => {
-  // --- Atoms ---
+  // Atoms
   const [page, setPage] = useAtom(currentPageAtom);
   const [pages] = useAtom(bookPagesAtom);
   const [currentBookId, setCurrentBookId] = useAtom(currentBookIdAtom);
   const [builderData] = useAtom(builderDataAtom);
   const [editorOpen, setEditorOpen] = useAtom(editModeAtom);
   const [, updatePage] = useAtom(updatePageAtom);
-  const [language, setLanguage] = useAtom(languageAtom);
+  const [, addPage] = useAtom(addPageAtom);
   const [, setBookPages] = useAtom(setBookPagesAtom);
+  const [language, setLanguage] = useAtom(languageAtom);
 
-  // --- Local State ---
+  // Local State
   const [editingPage, setEditingPage] = useState(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); 
-  
-  const [user, setUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // Custom Hooks
+  const { user, loading: authLoading } = useAuth(); // Use the Hook!
   
   const videoRef = useRef(null);
   const t = translations[language];
 
-  // --- Auth & DB ---
-  useEffect(() => {
-    // 1. Check active session immediately
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        loadBookFromDB(session.user.id);
-      }
-    });
-
-    // 2. Listen for auth changes (Sign In, Sign Out, Token Refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // 'SIGNED_IN' is the event fired when the token is parsed from URL
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        setUser(session?.user ?? null);
-        if (session?.user) loadBookFromDB(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setMenuOpen(false); // Close menu on logout
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleLogin = async () => {
-    // Redirect to same URL but allow Supabase to handle the return
-    await supabase.auth.signInWithOAuth({ 
-        provider: 'google',
-        options: {
-            redirectTo: window.location.origin 
-        }
-    });
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    window.location.reload();
-  };
-
+  // --- DB Sync Logic ---
   const loadBookFromDB = async (userId) => {
-    // This is where you would load the user's *last active* book
-    // For now, we leave the default book unless they pick one from library
-    console.log("User Loaded:", userId);
+    // Only load if we haven't loaded a book yet (pages length is default 2)
+    // or logic to auto-resume could go here.
+    // For now, we wait for user to click "My Library".
   };
 
   const saveBookToDB = async () => {
@@ -126,13 +77,34 @@ export const UI = () => {
     setIsSyncing(false);
   };
 
+  // Auto-save logic
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => saveBookToDB(), 3000);
     return () => clearTimeout(timer);
   }, [pages, user]);
 
-  // --- Editor Handlers ---
+  // Clean URL hash on login success
+  useEffect(() => {
+    if (user && window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [user]);
+
+  // --- Auth Handlers ---
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
+  // --- Editor Logic ---
   const loadEditorFor = (pageIndex, side) => {
     if (pageIndex < 0 || pageIndex >= pages.length) return;
     setEditingPage({ pageId: pages[pageIndex].id, side, pageNumber: pageIndex, data: pages[pageIndex][side] });
@@ -157,6 +129,12 @@ export const UI = () => {
     if (editingPage) updatePage({ pageId: editingPage.pageId, side: editingPage.side, texture: savedData.texture, fabricJSON: savedData.fabricJSON });
   };
 
+  const handleAddPage = () => {
+      addPage(); // Adds a new blank page at the end
+      setPage(pages.length); // Jump to new page
+      setMenuOpen(false);
+  };
+
   const getEditorLabel = () => {
     if (!editingPage) return '';
     if (editingPage.pageNumber === 0) return 'Front Cover';
@@ -168,10 +146,9 @@ export const UI = () => {
   useEffect(() => { if (videoRef.current) videoRef.current.play().catch(()=>{}); }, []);
 
   // --- Components ---
-
   const MenuButton = ({ onClick, icon, label, danger = false }) => (
     <button 
-      onClick={() => { onClick(); setMenuOpen(false); }}
+      onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
         danger ? 'text-red-400 hover:bg-red-900/30' : 'text-white hover:bg-white/10'
       }`}
@@ -193,9 +170,8 @@ export const UI = () => {
         <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
       </a>
 
-      {/* --- HEADER UI --- */}
+      {/* HEADER UI */}
       <div className="fixed top-6 right-6 pointer-events-auto z-20 flex items-center gap-3">
-        
         {isSyncing && (
           <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -203,7 +179,7 @@ export const UI = () => {
           </div>
         )}
 
-        {/* Edit Page - Only if logged in */}
+        {/* Edit Page - Show ONLY if User is logged in */}
         {user && (
             <button 
                 className="group flex items-center gap-2 bg-white text-gray-900 px-5 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95"
@@ -214,7 +190,7 @@ export const UI = () => {
             </button>
         )}
 
-        {/* Hamburger Menu Toggle */}
+        {/* Hamburger */}
         <div className="relative">
             <button 
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -225,11 +201,10 @@ export const UI = () => {
                 <span className="text-xl">{menuOpen ? '✕' : '☰'}</span>
             </button>
 
-            {/* Dropdown Menu */}
             {menuOpen && (
                 <div className="absolute top-14 right-0 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right">
                     
-                    {/* User Profile Section */}
+                    {/* User Profile / Login */}
                     <div className="p-4 border-b border-white/10 bg-white/5">
                         {user ? (
                             <div className="flex items-center gap-3">
@@ -258,14 +233,15 @@ export const UI = () => {
                         )}
                     </div>
 
-                    {/* Menu Items - Only show tools if logged in */}
+                    {/* Menu Actions */}
                     <div className="py-2">
                         {user && (
                             <>
-                                <MenuButton icon="📚" label={t.library} onClick={() => setLibraryOpen(true)} />
-                                <MenuButton icon="🪄" label={t.bookBuilder} onClick={() => setBuilderOpen(true)} />
+                                <MenuButton icon="📚" label={t.library} onClick={() => { setLibraryOpen(true); setMenuOpen(false); }} />
+                                <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} /> {/* NEW BUTTON */}
+                                <MenuButton icon="🪄" label={t.bookBuilder} onClick={() => { setBuilderOpen(true); setMenuOpen(false); }} />
                                 <div className="h-px bg-white/10 mx-4 my-2" />
-                                <MenuButton icon="🗑️" label={t.newBook} onClick={() => setResetOpen(true)} danger />
+                                <MenuButton icon="🗑️" label={t.newBook} onClick={() => { setResetOpen(true); setMenuOpen(false); }} danger />
                             </>
                         )}
                         {!user && (
@@ -275,7 +251,7 @@ export const UI = () => {
                         )}
                     </div>
 
-                    {/* Footer Actions */}
+                    {/* Footer */}
                     <div className="p-3 border-t border-white/10 bg-black/20 flex items-center justify-between">
                         <button 
                             onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
@@ -298,6 +274,7 @@ export const UI = () => {
         </div>
       </div>
 
+      {/* Modals */}
       {editorOpen && editingPage && (
         <EditorCanvas
           initialData={editingPage.data}
@@ -312,31 +289,21 @@ export const UI = () => {
       <ResetBookModal isOpen={resetOpen} onClose={() => setResetOpen(false)} />
       <BookListModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} />
       
+      {/* Footer Nav */}
       <main className="pointer-events-none select-none z-10 fixed inset-0 flex justify-between flex-col">
         <div className="flex-1"></div>
-        <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-6">
-          <div className="bg-black/30 backdrop-blur-md rounded-full p-2 border border-white/10 flex items-center gap-2 max-w-[90vw] overflow-x-auto no-scrollbar shadow-2xl">
+        <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-4">
+          <div className="overflow-auto flex items-center gap-3 max-w-full px-6 py-2">
             {pages.map((pageData, index) => (
               <button
                 key={pageData.id}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                    index === page 
-                    ? "bg-white text-gray-900 shadow-md transform scale-105" 
-                    : "text-white/70 hover:text-white hover:bg-white/10"
-                }`}
+                className={`border-transparent hover:border-white transition-all duration-300 px-4 py-2 rounded-full text-base shrink-0 border whitespace-nowrap ${index === page ? "bg-white/90 text-black font-bold shadow-lg" : "bg-black/30 text-white backdrop-blur-sm"}`}
                 onClick={() => setPage(index)}
               >
-                {index === 0 ? t.cover : index}
+                {index === 0 ? t.cover : `${t.page} ${index}`}
               </button>
             ))}
-            <button 
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                    page === pages.length ? "bg-white text-gray-900 shadow-md" : "text-white/70 hover:text-white hover:bg-white/10"
-                }`} 
-                onClick={() => setPage(pages.length)}
-            >
-                End
-            </button>
+            <button className={`border-transparent hover:border-white transition-all duration-300 px-4 py-2 rounded-full text-base shrink-0 border whitespace-nowrap ${page === pages.length ? "bg-white/90 text-black font-bold shadow-lg" : "bg-black/30 text-white backdrop-blur-sm"}`} onClick={() => setPage(pages.length)}>{t.backCover}</button>
           </div>
         </div>
       </main>
