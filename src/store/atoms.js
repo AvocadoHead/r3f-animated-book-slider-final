@@ -3,10 +3,8 @@ import { atomWithStorage } from 'jotai/utils';
 
 // --- Helpers ---
 
-// Generate unique ID for pages
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-// Create blank white page texture
 const createBlankTexture = () => {
   const canvas = document.createElement('canvas');
   canvas.width = 1325;
@@ -24,7 +22,8 @@ const initialPages = [
     id: generatePageId(),
     pageNumber: 0,
     front: {
-      texture: '/textures/שאלות לי אליך cover.png',
+      // CHANGED: Removed the specific Hebrew cover, used generic roughness map
+      texture: '/textures/book-cover-roughness.jpg', 
       fabricJSON: null,
       type: 'cover'
     },
@@ -61,69 +60,14 @@ const initialPages = [
       fabricJSON: null,
       type: 'page'
     }
-  },
-  {
-    id: generatePageId(),
-    pageNumber: 3,
-    front: {
-      texture: '/textures/IzenBook/IzenBook006.png',
-      fabricJSON: null,
-      type: 'page'
-    },
-    back: {
-      texture: '/textures/IzenBook/IzenBook007.png',
-      fabricJSON: null,
-      type: 'page'
-    }
-  },
-  {
-    id: generatePageId(),
-    pageNumber: 4,
-    front: {
-      texture: '/textures/IzenBook/IzenBook008.png',
-      fabricJSON: null,
-      type: 'page'
-    },
-    back: {
-      texture: '/textures/IzenBook/IzenBook009.png',
-      fabricJSON: null,
-      type: 'page'
-    }
-  },
-  {
-    id: generatePageId(),
-    pageNumber: 5,
-    front: {
-      texture: '/textures/IzenBook/IzenBook10.png',
-      fabricJSON: null,
-      type: 'page'
-    },
-    back: {
-      texture: '/textures/IzenBook/IzenBook011.png',
-      fabricJSON: null,
-      type: 'page'
-    }
-  },
-  {
-    id: generatePageId(),
-    pageNumber: 6,
-    front: {
-      texture: '/textures/IzenBook/IzenBook011.png',
-      fabricJSON: null,
-      type: 'page'
-    },
-    back: {
-      texture: '/textures/שאלה לי אליך back cover.png',
-      fabricJSON: null,
-      type: 'cover'
-    }
   }
 ];
 
 // --- State Atoms ---
 
-// Book pages - persisted to localStorage
-export const bookPagesAtom = atomWithStorage('book-pages', initialPages);
+// CHANGED: standard 'atom' (In-Memory) to prevent QuotaExceededError
+// This allows you to store hundreds of generated pages in the session.
+export const bookPagesAtom = atom(initialPages);
 
 // Current page being viewed (0-indexed)
 export const currentPageAtom = atom(0);
@@ -131,10 +75,10 @@ export const currentPageAtom = atom(0);
 // Edit mode toggle
 export const editModeAtom = atom(false);
 
-// Currently editing page (null or { pageId, side: 'front' | 'back' })
+// Currently editing page
 export const editingPageAtom = atom(null);
 
-// Language toggle ('en' or 'he')
+// Language toggle (Small string, so we can keep using storage for this)
 export const languageAtom = atomWithStorage('language', 'en');
 
 // Derived atom: Get simplified page data for the 3D Book component
@@ -148,7 +92,6 @@ export const bookDataAtom = atom((get) => {
 
 // --- Actions ---
 
-// Add a single blank page
 export const addPageAtom = atom(
   null,
   (get, set, position = 'end') => {
@@ -174,24 +117,19 @@ export const addPageAtom = atom(
     } else if (typeof position === 'number') {
       const newPages = [...pages];
       newPages.splice(position, 0, newPage);
-      // Renumber pages
       newPages.forEach((page, index) => {
         page.pageNumber = index;
       });
       set(bookPagesAtom, newPages);
     }
-
-    return newPage;
   }
 );
 
-// Remove a page by ID
 export const removePageAtom = atom(
   null,
   (get, set, pageId) => {
     const pages = get(bookPagesAtom);
     const newPages = pages.filter(p => p.id !== pageId);
-    // Renumber pages
     newPages.forEach((page, index) => {
       page.pageNumber = index;
     });
@@ -199,7 +137,6 @@ export const removePageAtom = atom(
   }
 );
 
-// Update a specific page's data (texture/JSON)
 export const updatePageAtom = atom(
   null,
   (get, set, { pageId, side, texture, fabricJSON }) => {
@@ -221,13 +158,11 @@ export const updatePageAtom = atom(
   }
 );
 
-// Bulk Add Pages (for BookBuilder)
 export const bulkAddPagesAtom = atom(
   null,
   (get, set, newPagesData) => {
     const currentPages = get(bookPagesAtom);
     
-    // Convert the raw data into the full page structure
     const newPageObjects = newPagesData.map((data, index) => ({
       id: generatePageId(),
       pageNumber: currentPages.length + index,
@@ -237,7 +172,7 @@ export const bulkAddPagesAtom = atom(
         type: 'page'
       },
       back: {
-        texture: createBlankTexture(), // Default white back
+        texture: createBlankTexture(),
         fabricJSON: null,
         type: 'page'
       }
@@ -247,10 +182,9 @@ export const bulkAddPagesAtom = atom(
   }
 );
 
-// Reset Book (for "New Book" button)
 export const resetBookAtom = atom(
   null,
-  (get, set, { coverUrl, title } = {}) => {
+  (get, set, { coverUrl } = {}) => {
     // 1. Create Front Cover
     const frontCover = {
       id: generatePageId(),
@@ -279,7 +213,6 @@ export const resetBookAtom = atom(
       }
     };
 
-    // 3. Reset State
     set(bookPagesAtom, [frontCover, backCover]);
     set(currentPageAtom, 0);
   }
