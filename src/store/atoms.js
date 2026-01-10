@@ -2,55 +2,38 @@ import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
 // --- Helpers ---
+
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const createBlankTexture = () => {
-  if (typeof document === 'undefined') return ''; // Safety for SSR
+export const createBlankTexture = () => {
+  if (typeof document === 'undefined') return '';
   const canvas = document.createElement('canvas');
   canvas.width = 1325;
   canvas.height = 1771;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#f5f5f5'; // Light gray for default paper
+  ctx.fillStyle = '#f5f5f5'; // Light gray paper
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/png');
 };
 
-// --- Atoms ---
-
-// 1. Clipboard for moving items between pages
-export const clipboardAtom = atom(null); 
-
-// 2. Initial Pages (Clean Slate - No Sensei)
+// --- Initial Data ---
+// Clean start: Cover + 1 Page
 const initialPages = [
   {
     id: generatePageId(),
     pageNumber: 0,
-    front: {
-      texture: createBlankTexture(), // CLEAN COVER
-      fabricJSON: null,
-      type: 'cover'
-    },
-    back: {
-      texture: createBlankTexture(),
-      fabricJSON: null,
-      type: 'page'
-    }
+    front: { texture: createBlankTexture(), type: 'cover' },
+    back: { texture: createBlankTexture(), type: 'page' }
   },
   {
     id: generatePageId(),
     pageNumber: 1,
-    front: {
-      texture: createBlankTexture(),
-      fabricJSON: null,
-      type: 'page'
-    },
-    back: {
-      texture: createBlankTexture(),
-      fabricJSON: null,
-      type: 'cover'
-    }
+    front: { texture: createBlankTexture(), type: 'page' },
+    back: { texture: createBlankTexture(), type: 'cover' }
   }
 ];
+
+// --- Atoms ---
 
 export const bookPagesAtom = atom(initialPages);
 export const currentPageAtom = atom(0);
@@ -58,6 +41,7 @@ export const editModeAtom = atom(false);
 export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
 
+// Derived atom for 3D Book
 export const bookDataAtom = atom((get) => {
   const pages = get(bookPagesAtom);
   return pages.map(page => ({
@@ -72,17 +56,17 @@ export const addPageAtom = atom(
   null,
   (get, set, position = 'end') => {
     const pages = get(bookPagesAtom);
-    const blankTexture = createBlankTexture();
+    const blank = createBlankTexture();
     const newPage = {
       id: generatePageId(),
       pageNumber: pages.length,
-      front: { texture: blankTexture, fabricJSON: null, type: 'page' },
-      back: { texture: blankTexture, fabricJSON: null, type: 'page' }
+      front: { texture: blank, fabricJSON: null, type: 'page' },
+      back: { texture: blank, fabricJSON: null, type: 'page' }
     };
 
     if (position === 'end') {
       set(bookPagesAtom, [...pages, newPage]);
-    } else if (typeof position === 'number') {
+    } else {
       const newPages = [...pages];
       newPages.splice(position, 0, newPage);
       newPages.forEach((p, i) => p.pageNumber = i);
@@ -122,20 +106,28 @@ export const updatePageAtom = atom(
   }
 );
 
+// --- CRITICAL FIX HERE ---
 export const bulkAddPagesAtom = atom(
   null,
-  (get, set, newPagesData) => {
+  (get, set, newLeaves) => {
     const currentPages = get(bookPagesAtom);
-    const newPageObjects = newPagesData.map((data, index) => ({
+    
+    // Map the incoming { front, back } objects correctly
+    const newPageObjects = newLeaves.map((leaf, index) => ({
       id: generatePageId(),
       pageNumber: currentPages.length + index,
       front: {
-        texture: data.texture,
-        fabricJSON: data.fabricJSON,
+        texture: leaf.front?.texture || createBlankTexture(), // Fallback if missing
+        fabricJSON: leaf.front?.fabricJSON || null,
         type: 'page'
       },
-      back: { texture: createBlankTexture(), fabricJSON: null, type: 'page' }
+      back: {
+        texture: leaf.back?.texture || createBlankTexture(), // Fallback if missing
+        fabricJSON: leaf.back?.fabricJSON || null,
+        type: 'page'
+      }
     }));
+
     set(bookPagesAtom, [...currentPages, ...newPageObjects]);
   }
 );
@@ -144,18 +136,23 @@ export const resetBookAtom = atom(
   null,
   (get, set, { coverUrl } = {}) => {
     const coverTex = coverUrl || createBlankTexture();
+    const blank = createBlankTexture();
+    
     const frontCover = {
       id: generatePageId(),
       pageNumber: 0,
       front: { texture: coverTex, type: 'cover' },
-      back: { texture: createBlankTexture(), type: 'page' }
+      back: { texture: blank, type: 'page' }
     };
+    
+    // Ensure we have at least one back cover leaf
     const backCover = {
       id: generatePageId(),
       pageNumber: 1,
-      front: { texture: createBlankTexture(), type: 'page' },
+      front: { texture: blank, type: 'page' },
       back: { texture: coverTex, type: 'cover' }
     };
+
     set(bookPagesAtom, [frontCover, backCover]);
     set(currentPageAtom, 0);
   }
