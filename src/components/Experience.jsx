@@ -1,11 +1,11 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
 import { Book } from "./Book";
+
 export const Experience = () => {
   return (
     <>
       <Float
         rotation-x={-Math.PI / 4}
-        >
         floatIntensity={1}
         speed={2}
         rotationIntensity={2}
