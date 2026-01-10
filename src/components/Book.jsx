@@ -17,7 +17,7 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookDataAtom } from "../../store/atoms";
+import { currentPageAtom, bookDataAtom } from "../store/atoms";
 
 const getTextureExtension = (name) => {
   if (!name) return 'png';
