@@ -10,7 +10,7 @@ export const createBlankTexture = () => {
   canvas.width = 1325;
   canvas.height = 1771;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#f5f5f5'; // Light gray paper
+  ctx.fillStyle = '#f5f5f5';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/png');
 };
@@ -39,6 +39,16 @@ export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
 export const clipboardAtom = atom(null);
 
+// NEW: Persistent Builder State (Keeps URLs when you reopen menu)
+export const builderDataAtom = atomWithStorage('builder-state', {
+  title: '',
+  coverUrl: '',
+  urls: '',
+  itemsPerPage: 1,
+  coverColor: '#000000',
+  coverFontSize: '60'
+});
+
 export const bookDataAtom = atom((get) => {
   const pages = get(bookPagesAtom);
   return pages.map(page => ({
@@ -48,13 +58,11 @@ export const bookDataAtom = atom((get) => {
 });
 
 // --- Actions ---
-
-// NEW: Helper to overwrite everything (Used by BookBuilder)
 export const setBookPagesAtom = atom(
   null,
   (get, set, newPages) => {
     set(bookPagesAtom, newPages);
-    set(currentPageAtom, 0); // Always jump to cover
+    set(currentPageAtom, 0);
   }
 );
 
@@ -81,16 +89,6 @@ export const addPageAtom = atom(
   }
 );
 
-export const removePageAtom = atom(
-  null,
-  (get, set, pageId) => {
-    const pages = get(bookPagesAtom);
-    const newPages = pages.filter(p => p.id !== pageId);
-    newPages.forEach((p, i) => p.pageNumber = i);
-    set(bookPagesAtom, newPages);
-  }
-);
-
 export const updatePageAtom = atom(
   null,
   (get, set, { pageId, side, texture, fabricJSON }) => {
@@ -109,50 +107,5 @@ export const updatePageAtom = atom(
       return page;
     });
     set(bookPagesAtom, newPages);
-  }
-);
-
-export const bulkAddPagesAtom = atom(
-  null,
-  (get, set, newLeaves) => {
-    const currentPages = get(bookPagesAtom);
-    // Logic handles in Builder now, this just appends
-    const newPageObjects = newLeaves.map((leaf, index) => ({
-      id: generatePageId(),
-      pageNumber: currentPages.length + index,
-      front: {
-        texture: leaf.front?.texture || createBlankTexture(),
-        fabricJSON: leaf.front?.fabricJSON || null,
-        type: 'page'
-      },
-      back: {
-        texture: leaf.back?.texture || createBlankTexture(),
-        fabricJSON: leaf.back?.fabricJSON || null,
-        type: 'page'
-      }
-    }));
-    set(bookPagesAtom, [...currentPages, ...newPageObjects]);
-  }
-);
-
-export const resetBookAtom = atom(
-  null,
-  (get, set, { coverUrl } = {}) => {
-    const coverTex = coverUrl || createBlankTexture();
-    const blank = createBlankTexture();
-    const frontCover = {
-      id: generatePageId(),
-      pageNumber: 0,
-      front: { texture: coverTex, type: 'cover' },
-      back: { texture: blank, type: 'page' }
-    };
-    const backCover = {
-      id: generatePageId(),
-      pageNumber: 1,
-      front: { texture: blank, type: 'page' },
-      back: { texture: coverTex, type: 'cover' }
-    };
-    set(bookPagesAtom, [frontCover, backCover]);
-    set(currentPageAtom, 0);
   }
 );
