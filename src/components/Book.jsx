@@ -17,7 +17,8 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookDataAtom } from "../store/atoms";
+import { currentPageAtom, bookDataAtom } from "../../store/atoms";
+
 const getTextureExtension = (name) => {
   if (!name) return 'png';
   return (name.includes('שאל') || name.includes('cover') || name.includes('כריכה') || name.includes('ספר') || name.includes('IzenBook') || name === 'back') ? 'png' : 'jpg';
@@ -26,6 +27,7 @@ const getTextureExtension = (name) => {
 const isDataUrl = (str) => {
   return str && (str.startsWith('data:') || str.startsWith('blob:'));
 };
+
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
 const insideCurveStrength = 0.18;
@@ -36,6 +38,7 @@ const PAGE_HEIGHT = 1.71;
 const PAGE_DEPTH = 0.003;
 const PAGE_SEGMENTS = 30;
 const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
+
 const pageGeometry = new BoxGeometry(
   PAGE_WIDTH,
   PAGE_HEIGHT,
@@ -44,6 +47,7 @@ const pageGeometry = new BoxGeometry(
   2
 );
 pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
+
 const position = pageGeometry.attributes.position;
 const vertex = new Vector3();
 const skinIndexes = [];
@@ -64,6 +68,7 @@ pageGeometry.setAttribute(
   "skinWeight",
   new Float32BufferAttribute(skinWeights, 4)
 );
+
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
 const pageMaterials = [
@@ -72,15 +77,18 @@ const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
   new MeshStandardMaterial({ color: whiteColor }),
 ];
-// Texture preloading will be handled dynamically in the Page component
+
 const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...props }) => {
-  // Handle both data URLs and file paths
+  // --- FIX 1: Enhanced URL Handling ---
   const getFinalUrl = (path) => {
     if (!path) return null;
     if (isDataUrl(path)) return path;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path; // Support external URLs
+    
     // Check if path already starts with /textures/
     if (path.startsWith('/textures/')) return path;
-    // Add /textures/ prefix and extension
+    
+    // Fallback for legacy local files
     return `/textures/${path}.${getTextureExtension(path)}`;
   };
   
@@ -97,10 +105,12 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
   
   const [picture, picture2, pictureRoughness] = useTexture(texturesToLoad);
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
+  
   const group = useRef();
   const turnedAt = useRef(0);
   const lastOpened = useRef(opened);
   const skinnedMeshRef = useRef();
+  
   const manualSkinnedMesh = useMemo(() => {
     const bones = [];
     for (let i = 0; i <= PAGE_SEGMENTS; i++) {
@@ -144,9 +154,11 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, []);
+  }, [picture, picture2, pictureRoughness]); // Added dependencies to refresh if textures change
+
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
+    
     const emissiveIntensity = highlighted ? 0.22 : 0;
     skinnedMeshRef.current.material[4].emissiveIntensity =
       skinnedMeshRef.current.material[5].emissiveIntensity = MathUtils.lerp(
@@ -154,6 +166,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
         emissiveIntensity,
         0.1
       );
+
     if (lastOpened.current !== opened) {
       turnedAt.current = +new Date();
       lastOpened.current = opened;
@@ -205,9 +218,11 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       );
     }
   });
+
   const [_, setPage] = useAtom(currentPageAtom);
   const [highlighted, setHighlighted] = useState(false);
   useCursor(highlighted);
+
   return (
     <group
       {...props}
@@ -234,10 +249,12 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     </group>
   );
 };
+
 export const Book = ({ ...props }) => {
   const [page] = useAtom(currentPageAtom);
   const [bookData] = useAtom(bookDataAtom);
   const [delayedPage, setDelayedPage] = useState(page);
+
   useEffect(() => {
     let timeout;
     const goToPage = () => {
@@ -265,10 +282,11 @@ export const Book = ({ ...props }) => {
       clearTimeout(timeout);
     };
   }, [page]);
+
   return (
     <group {...props} rotation-y={-Math.PI / 2}>
-       269
-  {[...bookData].map((pageData, index) => (
+      {/* FIX 2: Removed stray '269' number here */}
+      {[...bookData].map((pageData, index) => (
         <Page
           key={index}
           page={delayedPage}
