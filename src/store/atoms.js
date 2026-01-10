@@ -39,6 +39,9 @@ export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
 export const clipboardAtom = atom(null);
 
+// NEW: Track the Database ID of the currently open book
+export const currentBookIdAtom = atom(null);
+
 // NEW: Persistent Builder State (Keeps URLs when you reopen menu)
 export const builderDataAtom = atomWithStorage('builder-state', {
   title: '',
@@ -65,6 +68,7 @@ export const setBookPagesAtom = atom(
   (get, set, newPages) => {
     set(bookPagesAtom, newPages);
     set(currentPageAtom, 0);
+        set(currentBookIdAtom, null); // <--- Start as a "New, Unsaved" book
   }
 );
 
