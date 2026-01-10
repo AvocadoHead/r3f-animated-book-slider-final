@@ -1,31 +1,31 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
-// Correct import path for your structure
+// CORRECT IMPORT: Sibling file in 'src/components/'
 import { Book } from "./Book"; 
 
 export const Experience = () => {
   return (
     <>
       <Float
-        rotation-x={-Math.PI / 4} // Initial tilt (like reading)
-        floatIntensity={0.5}      // Weighted (doesn't fly away)
-        speed={2}
-        rotationIntensity={1}     // Allows tilting (forward/backward/side)
+        rotation-x={-Math.PI / 4} // Initial tilt for reading angle
+        floatIntensity={0.5}      // Weighted (0.5 is heavier than 1)
+        speed={2}                 // Speed of the floating bob
+        rotationIntensity={1}     // 1 allows tilting forward/back/side (0.2 was too stiff)
         floatingRange={[-0.1, 0.1]}
       >
         <Book />
       </Float>
       <OrbitControls 
-        maxPolarAngle={Math.PI / 2} 
+        maxPolarAngle={Math.PI / 2} // Don't go under the floor
         minDistance={3}
         maxDistance={15}
       />
       <Environment preset="studio"></Environment>
       
-      {/* Lighting Tweaks for Even Whiteness */}
+      {/* Lighting Fix: Balanced to stop right-page washout */}
       <ambientLight intensity={1.5} />
       <directionalLight
         position={[2, 5, 2]}
-        intensity={1} // Reduced from 2.5 to prevent blowout on right page
+        intensity={1} 
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
