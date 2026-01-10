@@ -1,14 +1,15 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
-import { Book } from "./pages/Book"; 
+// CORRECT IMPORT: Book is in the same folder as Experience
+import { Book } from "./Book"; 
 
 export const Experience = () => {
   return (
     <>
       <Float
-        rotation-x={-0.1} 
-        floatIntensity={0.2} 
+        rotation-x={-0.1}
+        floatIntensity={0.2}
         speed={2}
-        rotationIntensity={0.5} 
+        rotationIntensity={0.5}
       >
         <Book />
       </Float>
