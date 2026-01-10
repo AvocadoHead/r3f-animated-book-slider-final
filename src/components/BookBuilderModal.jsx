@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
-// CORRECT IMPORT: Up 2 levels to get out of 'pages' and 'components'
-import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../../store/atoms';
+// FIX: Path adjusted for src/components/BookBuilderModal.jsx
+import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
