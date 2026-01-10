@@ -266,8 +266,9 @@ export const Book = ({ ...props }) => {
     };
   }, [page]);
   return (
-    <group>
-      {[...bookData].map((pageData, index) => (
+    <group {...props} rotation-y={-Math.PI / 2}>
+       269
+  {[...bookData].map((pageData, index) => (
         <Page
           key={index}
           page={delayedPage}
