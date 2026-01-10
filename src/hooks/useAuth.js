@@ -6,24 +6,60 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Get initial session (handles existing local storage login)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // 2. Listen for Auth Events (handles the OAuth redirect callback)
+    // 1. Setup Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // console.log("Auth Event:", event);
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      if (mounted) {
         setUser(session?.user ?? null);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // 2. Initial Check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted) {
+        if (session) {
+          setUser(session.user);
+        }
+        setLoading(false);
+      }
+    });
+
+    // 3. FORCE FIX: Manually parse URL if Supabase missed it
+    const handleHash = async () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        try {
+          // Extract tokens manually
+          const params = new URLSearchParams(hash.substring(1)); // remove #
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+
+            if (data?.session?.user) {
+              setUser(data.session.user);
+              // Clean URL
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          }
+        } catch (e) {
+          console.error("Manual token parse failed", e);
+        }
+      }
+    };
+
+    handleHash();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return { user, loading };
