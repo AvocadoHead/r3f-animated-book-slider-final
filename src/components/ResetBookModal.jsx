@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAtom } from 'jotai';
-// CORRECT IMPORT for a file in src/components/pages/
-import { resetBookAtom } from '../../store/atoms';
+// FIX: Path adjusted for src/components/ResetBookModal.jsx
+import { resetBookAtom } from '../store/atoms';
 
 export const ResetBookModal = ({ isOpen, onClose }) => {
   const [, resetBook] = useAtom(resetBookAtom);
