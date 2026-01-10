@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
-// FIX: Correct path for components folder
 import { bulkAddPagesAtom, resetBookAtom } from '../store/atoms';
 
 const PAGE_W = 800;
@@ -41,6 +40,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => {
+        // Fallback proxy
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
         const retry = new Image();
         retry.crossOrigin = 'anonymous';
@@ -60,7 +60,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     const safeW = PAGE_W - (padding * 2);
     const safeH = PAGE_H - (padding * 2);
     
-    // Title Logic (Burned into texture for Cover)
+    // Title ONLY if provided (Used for Cover)
     if (title) {
         const titleObj = new fabric.IText(title, {
             left: PAGE_W / 2,
@@ -74,6 +74,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         fabricCanvas.add(titleObj);
     }
 
+    // Grid Logic
     const gridConfig = {
       1: [{ x: 0, y: title ? 0.3 : 0, w: 1, h: title ? 0.7 : 1 }],
       2: [{ x: 0, y: 0, w: 1, h: 0.5 }, { x: 0, y: 0.5, w: 1, h: 0.5 }],
@@ -123,46 +124,44 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         if (img) contentImages.push(img);
       }
 
-      setStatus('Generating layouts...');
+      setStatus('Generating content layouts...');
       const contentLayouts = [];
       for (let i = 0; i < contentImages.length; i += itemsPerPage) {
         const batch = contentImages.slice(i, i + itemsPerPage);
-        contentLayouts.push(await generateLayout(batch, fCanvas));
+        contentLayouts.push(await generateLayout(batch, fCanvas, null)); // Null title for inner pages
       }
 
-      setStatus('Creating cover...');
+      setStatus('Generating cover...');
       const coverImg = coverUrl ? await loadImage(coverUrl) : null;
       const coverData = await generateLayout(coverImg ? [coverImg] : [], fCanvas, coverTitle);
       
       if (shouldReset) {
-        resetBook({ coverUrl: null }); 
+        resetBook({ coverUrl: null }); // Clear memory
       }
 
-      // --- LOGIC FIX: LEFT/RIGHT ORDERING ---
+      // --- ASSEMBLY LOGIC ---
       const newLeaves = [];
 
-      // LEAF 0: Front Cover + Page 1 (Left)
-      // Front: Cover (Right Side when closed, becomes Right when viewing cover)
-      // Back: Inside Left (First page of content)
-      newLeaves.push({
-        front: coverData,         
-        back: contentLayouts[0] || null 
-      });
+      // 1. Create Layout Array: [Cover, Page 1, Page 2, Page 3...]
+      const allLayouts = [coverData, ...contentLayouts];
 
-      // Remaining Layouts start from index 1
-      // LEAF 1: Page 2 (Right) + Page 3 (Left)
-      // LEAF 2: Page 4 (Right) + Page 5 (Left)
-      let layoutIndex = 1;
-      while (layoutIndex < contentLayouts.length) {
-        const rightPageData = contentLayouts[layoutIndex]; 
-        const leftPageData = contentLayouts[layoutIndex + 1]; 
+      // 2. Map to Leaves { front: RightSide, back: LeftSide }
+      // Leaf 0 Front = Cover (Right)
+      // Leaf 0 Back = Page 1 (Left)
+      // Leaf 1 Front = Page 2 (Right)
+      // Leaf 1 Back = Page 3 (Left)
+      
+      let i = 0;
+      while (i < allLayouts.length) {
+        const frontSide = allLayouts[i];     // Right Side (Cover, Page 2, Page 4...)
+        const backSide = allLayouts[i + 1];  // Left Side (Page 1, Page 3, Page 5...)
         
         newLeaves.push({
-          front: rightPageData || null, // Right Page
-          back: leftPageData || null    // Left Page (Back of the Right page)
+          front: frontSide || null,
+          back: backSide || null
         });
         
-        layoutIndex += 2;
+        i += 2; // Move to next pair
       }
 
       bulkAddPages(newLeaves);
@@ -186,6 +185,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           Book Wizard
         </h2>
 
+        {/* 1. Cover */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
           <h3 className="font-bold text-gray-700 mb-3">1. Cover Setup</h3>
           <div className="grid grid-cols-2 gap-4">
@@ -200,6 +200,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
+        {/* 2. Content */}
         <div className="mb-6">
           <h3 className="font-bold text-gray-700 mb-3">2. Add Pages</h3>
           <div className="flex justify-between mb-2">
@@ -218,6 +219,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           />
         </div>
 
+        {/* 3. Options */}
         <div className="flex items-center gap-2 mb-6">
             <input type="checkbox" id="reset" checked={shouldReset} onChange={e => setShouldReset(e.target.checked)} />
             <label htmlFor="reset" className="text-sm text-gray-700">Start a new book (Delete existing pages)</label>
@@ -225,6 +227,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
+        {/* Footer */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm font-medium text-purple-600 animate-pulse">{status}</div>
           <div className="flex gap-3">
