@@ -17,7 +17,13 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookDataAtom } from "../store/atoms";
+// Ensure this path points correctly to your store folder
+import { currentPageAtom, bookDataAtom } from "../../store/atoms";
+
+// --- Helpers ---
+
+// 1x1 White Pixel (Safety Fallback to prevent crashes if texture is missing)
+const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
 
 const getTextureExtension = (name) => {
   if (!name) return 'png';
@@ -27,6 +33,8 @@ const getTextureExtension = (name) => {
 const isDataUrl = (str) => {
   return str && (str.startsWith('data:') || str.startsWith('blob:'));
 };
+
+// --- Constants ---
 
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
@@ -38,6 +46,8 @@ const PAGE_HEIGHT = 1.71;
 const PAGE_DEPTH = 0.003;
 const PAGE_SEGMENTS = 30;
 const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
+
+// --- Geometry Setup ---
 
 const pageGeometry = new BoxGeometry(
   PAGE_WIDTH,
@@ -52,6 +62,7 @@ const position = pageGeometry.attributes.position;
 const vertex = new Vector3();
 const skinIndexes = [];
 const skinWeights = [];
+
 for (let i = 0; i < position.count; i++) {
   vertex.fromBufferAttribute(position, i);
   const x = vertex.x;
@@ -60,6 +71,7 @@ for (let i = 0; i < position.count; i++) {
   skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
   skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
 }
+
 pageGeometry.setAttribute(
   "skinIndex",
   new Uint16BufferAttribute(skinIndexes, 4)
@@ -78,17 +90,25 @@ const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
 ];
 
+// --- Components ---
+
 const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...props }) => {
-  // --- FIX 1: Enhanced URL Handling ---
+  
+  // Robust URL Handler
   const getFinalUrl = (path) => {
-    if (!path) return null;
-    if (isDataUrl(path)) return path;
-    if (path.startsWith('http://') || path.startsWith('https://')) return path; // Support external URLs
+    // 1. Safety Check: Return white pixel if null/undefined
+    if (!path) return WHITE_PIXEL;
     
-    // Check if path already starts with /textures/
+    // 2. Already correct format (Data URL or Blob)
+    if (isDataUrl(path)) return path;
+    
+    // 3. External URL (Google Drive / Web)
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    
+    // 4. Local Texture (Absolute path)
     if (path.startsWith('/textures/')) return path;
     
-    // Fallback for legacy local files
+    // 5. Legacy Fallback (Construct local path)
     return `/textures/${path}.${getTextureExtension(path)}`;
   };
   
@@ -103,7 +123,10 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       : []),
   ];
   
+  // useTexture will now always receive valid strings, preventing the crash
   const [picture, picture2, pictureRoughness] = useTexture(texturesToLoad);
+  
+  // Set color space for correct rendering
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
   
   const group = useRef();
@@ -131,7 +154,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture,
-        ...(number === 0 && !front.includes('שאל')
+        ...(number === 0 && !front?.includes('שאל')
           ? { roughnessMap: pictureRoughness }
           : { roughness: 0.1 }),
         emissive: emissiveColor,
@@ -140,7 +163,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture2,
-        ...(number === totalPages - 1 && !back.includes('שאל')
+        ...(number === totalPages - 1 && !back?.includes('שאל')
           ? { roughnessMap: pictureRoughness }
           : { roughness: 0.1 }),
         emissive: emissiveColor,
@@ -154,7 +177,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2, pictureRoughness]); // Added dependencies to refresh if textures change
+  }, [picture, picture2, pictureRoughness, number, front, back, totalPages]);
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
@@ -285,7 +308,6 @@ export const Book = ({ ...props }) => {
 
   return (
     <group {...props} rotation-y={-Math.PI / 2}>
-      {/* FIX 2: Removed stray '269' number here */}
       {[...bookData].map((pageData, index) => (
         <Page
           key={index}
