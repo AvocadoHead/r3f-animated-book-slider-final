@@ -11,14 +11,13 @@ const PAGE_DIMENSIONS = {
   actualHeight: 1771,
 };
 
-// Pass in pageInfo prop for the header
 export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
   const canvasRef = useRef(null);
   const fabricCanvasRef = useRef(null);
   const [clipboard, setClipboard] = useAtom(clipboardAtom);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isDirty, setIsDirty] = useState(false); // Track changes
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
@@ -32,7 +31,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
 
     fabricCanvasRef.current = canvas;
 
-    // Track changes
     canvas.on('object:added', () => setIsDirty(true));
     canvas.on('object:modified', () => setIsDirty(true));
     canvas.on('object:removed', () => setIsDirty(true));
@@ -50,13 +48,9 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
     return () => { canvas.dispose(); };
   }, [initialData]);
 
-  // --- Actions ---
-
   const handleClose = () => {
     if (isDirty) {
-      if (confirm('You have unsaved changes. Close anyway?')) {
-        onClose();
-      }
+      if (confirm('Unsaved changes. Close anyway?')) onClose();
     } else {
       onClose();
     }
@@ -65,11 +59,8 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
   const handleSave = () => {
       if(!fabricCanvasRef.current) return;
       setIsLoading(true);
-      setStatus('Saving...');
-      
       const json = fabricCanvasRef.current.toJSON(['videoMetadata']);
       
-      // Merge background logic
       if (initialData.texture) {
           fabric.Image.fromURL(initialData.texture, (bgImg) => {
               bgImg.set({ 
@@ -90,7 +81,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
               onSave({ texture: dataUrl, fabricJSON: json });
               setIsLoading(false);
               setIsDirty(false);
-              onClose(); // Close after save
+              onClose();
           }, { crossOrigin: 'anonymous' });
       } else {
           const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
@@ -98,36 +89,51 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
           onSave({ texture: dataUrl, fabricJSON: json });
           setIsLoading(false);
           setIsDirty(false);
-          onClose(); // Close after save
+          onClose();
       }
   };
 
-  // --- Tools (Shortened for brevity, keep logic from previous step) ---
-  const addText = useCallback(() => { 
-      const t = new fabric.IText('Text', { left: 100, top: 100, fontSize: 40 });
-      fabricCanvasRef.current.add(t);
-      fabricCanvasRef.current.setActiveObject(t);
-  }, []);
-  
-  const addImageFromUrl = useCallback(() => {
-     const url = prompt("Image URL");
-     if(url) fabric.Image.fromURL(url, (img)=>{ img.scaleToWidth(300); fabricCanvasRef.current.add(img); }, {crossOrigin:'anonymous'});
-  }, []);
-
   const copyObject = useCallback(async () => {
-    const active = fabricCanvasRef.current?.getActiveObject();
-    if (active) { setClipboard(await active.clone()); setStatus('Copied'); setTimeout(()=>setStatus(''),1000); }
+    if (!fabricCanvasRef.current) return;
+    const active = fabricCanvasRef.current.getActiveObject();
+    if (active) {
+        setClipboard(await active.clone());
+        setStatus('Copied');
+        setTimeout(()=>setStatus(''),1000);
+    }
   }, [setClipboard]);
 
   const pasteObject = useCallback(async () => {
-    if (!clipboard) return;
+    if (!fabricCanvasRef.current || !clipboard) return;
     const cloned = await clipboard.clone();
-    cloned.set({ left: cloned.left+20, top: cloned.top+20, evented:true });
-    if(cloned.type==='activeSelection') { cloned.canvas=fabricCanvasRef.current; cloned.forEachObject(o=>fabricCanvasRef.current.add(o)); cloned.setCoords(); }
-    else fabricCanvasRef.current.add(cloned);
+    cloned.set({ left: cloned.left + 20, top: cloned.top + 20, evented: true });
+    if (cloned.type === 'activeSelection') {
+        cloned.canvas = fabricCanvasRef.current;
+        cloned.forEachObject(o => fabricCanvasRef.current.add(o));
+        cloned.setCoords();
+    } else {
+        fabricCanvasRef.current.add(cloned);
+    }
     fabricCanvasRef.current.setActiveObject(cloned);
     fabricCanvasRef.current.requestRenderAll();
   }, [clipboard]);
+
+  const addText = useCallback(() => {
+    if(!fabricCanvasRef.current) return;
+    const t = new fabric.IText('Text', { left: 100, top: 100, fontSize: 40 });
+    fabricCanvasRef.current.add(t);
+    fabricCanvasRef.current.setActiveObject(t);
+  }, []);
+
+  const addImageFromUrl = useCallback(() => {
+     const url = prompt("Image URL");
+     if(url) {
+         fabric.Image.fromURL(url, (img)=>{
+             img.scaleToWidth(300);
+             fabricCanvasRef.current.add(img);
+         }, {crossOrigin:'anonymous'});
+     }
+  }, []);
 
   const deleteSelected = useCallback(() => {
       const active = fabricCanvasRef.current?.getActiveObject();
@@ -138,29 +144,17 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col" style={{ width: PAGE_DIMENSIONS.width + 100, height: '95vh' }}>
         
-        {/* Header */}
         <div className="bg-gray-800 text-white p-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <h2 className="font-bold text-lg">Page Editor</h2>
-            {pageInfo && (
-                <span className="bg-gray-700 px-3 py-1 rounded-full text-xs text-gray-300">
-                    {pageInfo}
-                </span>
-            )}
+            {pageInfo && <span className="bg-gray-700 px-3 py-1 rounded-full text-xs text-gray-300">{pageInfo}</span>}
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-yellow-400">{status}</span>
-            <button 
-                onClick={handleClose} 
-                className="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-red-600 rounded-full transition-colors"
-                title="Close"
-            >
-                ✕
-            </button>
+            <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-red-600 rounded-full transition-colors">✕</button>
           </div>
         </div>
 
-        {/* Toolbar */}
         <div className="bg-gray-100 p-2 flex gap-2 border-b justify-center flex-wrap">
            <button onClick={addText} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">📝 Text</button>
            <button onClick={addImageFromUrl} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">🖼️ Image</button>
@@ -171,7 +165,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
            <button onClick={deleteSelected} className="px-3 py-1 text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100">🗑️ Delete</button>
         </div>
 
-        {/* Canvas */}
         <div className="flex-1 bg-gray-600 overflow-auto flex justify-center p-8">
            <div className="relative shadow-2xl bg-white" 
                 style={{ 
@@ -188,16 +181,9 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo }) => {
            </div>
         </div>
 
-        {/* Footer */}
         <div className="p-4 bg-white border-t flex justify-end gap-2">
             <button onClick={handleClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
-            <button 
-                onClick={handleSave} 
-                disabled={isLoading}
-                className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold disabled:opacity-50"
-            >
-                {isLoading ? 'Saving...' : 'Save & Close'}
-            </button>
+            <button onClick={handleSave} className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold">{isLoading ? 'Saving...' : 'Save & Close'}</button>
         </div>
       </div>
     </div>
