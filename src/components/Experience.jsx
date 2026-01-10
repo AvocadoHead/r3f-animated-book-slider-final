@@ -1,18 +1,22 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
-import { Book } from "./Book";
+import { Book } from "./pages/Book"; // Check this path matches your folder structure!
 
 export const Experience = () => {
   return (
     <>
       <Float
-        rotation-x={-Math.PI / 4}
-        floatIntensity={1}
+        rotation-x={-0.1} // Much less tilted (was -Math.PI / 4)
+        floatIntensity={0.2} // Subtle floating (was 1)
         speed={2}
-        rotationIntensity={2}
+        rotationIntensity={0.5} // Less spinning (was 2)
       >
         <Book />
       </Float>
-      <OrbitControls />
+      <OrbitControls 
+        maxPolarAngle={Math.PI / 2} // Prevent going under the floor
+        minDistance={3}
+        maxDistance={15}
+      />
       <Environment preset="studio"></Environment>
       <directionalLight
         position={[2, 5, 2]}
