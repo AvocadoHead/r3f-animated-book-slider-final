@@ -4,7 +4,8 @@ export const Experience = () => {
   return (
     <>
       <Float
-        rotation-x={-Math.PI / 5}
+        rotation-x={-Math.PI / 4}
+        }
         floatIntensity={1}
         speed={2}
         rotationIntensity={2}
