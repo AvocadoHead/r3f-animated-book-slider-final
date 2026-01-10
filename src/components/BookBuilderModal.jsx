@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
+// CORRECT IMPORT for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture } from '../store/atoms';
 
 const PAGE_W = 800;
@@ -8,20 +9,27 @@ const PAGE_H = 1070;
 const ACTUAL_W = 1325;
 
 export const BookBuilderModal = ({ isOpen, onClose }) => {
-  const [, setBookPages] = useAtom(setBookPagesAtom); // Using the overwrite atom
+  const [, setBookPages] = useAtom(setBookPagesAtom);
   
-  const [coverTitle, setCoverTitle] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
+  // Content Inputs
   const [urls, setUrls] = useState('');
   const [itemsPerPage, setItemsPerPage] = useState(1);
   const [shouldReset, setShouldReset] = useState(true);
+
+  // Cover Inputs
+  const [coverTitle, setCoverTitle] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [coverColor, setCoverColor] = useState('#000000');
+  const [coverFontSize, setCoverFontSize] = useState(60);
   
+  // State
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const canvasRef = useRef(null);
 
   if (!isOpen) return null;
 
+  // --- Helpers ---
   const processUrl = (url) => {
     if (!url) return null;
     const cleanUrl = url.trim();
@@ -49,7 +57,9 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     });
   };
 
-  const generateLayout = async (images, fabricCanvas, title = null) => {
+  // --- Layout Engine ---
+  // Added 'forceGrid' to ensure Cover is always 1 image
+  const generateLayout = async (images, fabricCanvas, titleConfig = null, forceGrid = null) => {
     fabricCanvas.clear();
     fabricCanvas.backgroundColor = '#ffffff';
 
@@ -57,27 +67,29 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     const safeW = PAGE_W - (padding * 2);
     const safeH = PAGE_H - (padding * 2);
     
-    // COVER TITLE (Burned In)
-    if (title) {
-        const titleObj = new fabric.IText(title, {
+    // Title Logic
+    if (titleConfig && titleConfig.text) {
+        const titleObj = new fabric.IText(titleConfig.text, {
             left: PAGE_W / 2,
             top: 200,
             originX: 'center',
-            fontSize: 60,
+            fontSize: Number(titleConfig.size),
             fontFamily: 'Arial',
             fontWeight: 'bold',
-            fill: '#000000'
+            fill: titleConfig.color
         });
         fabricCanvas.add(titleObj);
     }
 
+    const currentGrid = forceGrid || itemsPerPage;
+
     const gridConfig = {
-      1: [{ x: 0, y: title ? 0.3 : 0, w: 1, h: title ? 0.7 : 1 }],
+      1: [{ x: 0, y: titleConfig ? 0.3 : 0, w: 1, h: titleConfig ? 0.7 : 1 }],
       2: [{ x: 0, y: 0, w: 1, h: 0.5 }, { x: 0, y: 0.5, w: 1, h: 0.5 }],
       4: [{ x: 0,y:0,w:0.5,h:0.5 }, { x:0.5,y:0,w:0.5,h:0.5 }, { x:0,y:0.5,w:0.5,h:0.5 }, { x:0.5,y:0.5,w:0.5,h:0.5 }]
     };
 
-    const slots = gridConfig[itemsPerPage] || gridConfig[1];
+    const slots = gridConfig[currentGrid] || gridConfig[1];
 
     images.forEach((imgObj, index) => {
       if (!imgObj || index >= slots.length) return;
@@ -100,7 +112,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     fabricCanvas.renderAll();
     const scaleMultiplier = ACTUAL_W / PAGE_W;
     
-    // Return Object containing Texture + JSON
     return {
       texture: fabricCanvas.toDataURL({ format: 'png', quality: 0.9, multiplier: scaleMultiplier }),
       fabricJSON: fabricCanvas.toJSON(['videoMetadata', 'isVideo'])
@@ -115,7 +126,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     const urlList = urls.match(/(https?:\/\/[^\s]+)/g) || [];
     
     try {
-      // 1. Load All Images
       setStatus('Loading images...');
       const contentImages = [];
       for (let i = 0; i < urlList.length; i++) {
@@ -123,57 +133,72 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         if (img) contentImages.push(img);
       }
 
-      // 2. Generate Cover Layout (Explicitly Separate)
-      setStatus('Generating Cover...');
-      const coverImg = coverUrl ? await loadImage(coverUrl) : null;
-      // Pass 'coverTitle' ONLY here. Inner pages get null title.
-      const coverLayout = await generateLayout(coverImg ? [coverImg] : [], fCanvas, coverTitle);
-
-      // 3. Generate Content Layouts
-      setStatus('Generating Pages...');
+      setStatus('Generating layouts...');
       const contentLayouts = [];
       for (let i = 0; i < contentImages.length; i += itemsPerPage) {
         const batch = contentImages.slice(i, i + itemsPerPage);
-        // Pass NULL for title so no text appears on inner pages
-        contentLayouts.push(await generateLayout(batch, fCanvas, null)); 
+        contentLayouts.push(await generateLayout(batch, fCanvas));
       }
 
-      // 4. Assemble The Book (Correct Mapping)
+      setStatus('Creating cover...');
+      const coverImg = coverUrl ? await loadImage(coverUrl) : null;
+      // Force Grid 1 for Cover
+      const coverData = await generateLayout(
+          coverImg ? [coverImg] : [], 
+          fCanvas, 
+          { text: coverTitle, size: coverFontSize, color: coverColor },
+          1 // FORCE 1 ITEM PER PAGE
+      );
       
-      // The array of VISIBLE SIDES in order:
-      // Index 0: Front Cover (Leaf 0 Front)
-      // Index 1: Inside Left (Leaf 0 Back) - This is "Page 1"
-      // Index 2: Inside Right (Leaf 1 Front) - This is "Page 2"
-      // Index 3: Inside Left (Leaf 1 Back) - This is "Page 3"
-      const allSides = [coverLayout, ...contentLayouts];
+      const backCoverData = await generateLayout([], fCanvas, { text: "The End", size: 40, color: '#999' }, 1);
 
-      const finalPages = [];
-      let i = 0;
+      // --- ASSEMBLY LOGIC ---
+      const newLeaves = [];
 
-      while (i < allSides.length) {
-        // Take pairs of sides to make a Leaf
-        const frontSide = allSides[i] || { texture: createBlankTexture(), fabricJSON: null }; 
-        const backSide = allSides[i + 1] || { texture: createBlankTexture(), fabricJSON: null };
+      // 1. Add Front Cover (Leaf 0)
+      // Front: Cover (Right)
+      // Back: Page 1 (Left)
+      newLeaves.push({
+        front: coverData,         
+        back: contentLayouts[0] || null 
+      });
 
-        finalPages.push({
+      // 2. Add Content Pages
+      let layoutIndex = 1;
+      while (layoutIndex < contentLayouts.length) {
+        const rightPageData = contentLayouts[layoutIndex]; 
+        const leftPageData = contentLayouts[layoutIndex + 1]; 
+        
+        newLeaves.push({
+          front: rightPageData || null,
+          back: leftPageData || null
+        });
+        
+        layoutIndex += 2;
+      }
+
+      // 3. Add Back Cover
+      newLeaves.push({
+          front: { texture: createBlankTexture(), fabricJSON: null }, 
+          back: backCoverData 
+      });
+
+      // 4. Transform to Atom Structure
+      const finalPages = newLeaves.map((leaf, i) => ({
           id: generatePageId(),
-          pageNumber: finalPages.length,
+          pageNumber: i,
           front: { 
-            texture: frontSide.texture, 
-            fabricJSON: frontSide.fabricJSON,
+            texture: leaf.front?.texture || createBlankTexture(), 
+            fabricJSON: leaf.front?.fabricJSON || null,
             type: i === 0 ? 'cover' : 'page'
           },
           back: { 
-            texture: backSide.texture, 
-            fabricJSON: backSide.fabricJSON, 
-            type: 'page' 
+            texture: leaf.back?.texture || createBlankTexture(), 
+            fabricJSON: leaf.back?.fabricJSON || null,
+            type: i === newLeaves.length - 1 ? 'cover' : 'page' 
           }
-        });
+      }));
 
-        i += 2;
-      }
-
-      // 5. Overwrite State
       setBookPages(finalPages);
       
       setStatus('✅ Done!');
@@ -195,10 +220,10 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           Book Wizard
         </h2>
 
-        {/* Inputs */}
+        {/* Cover Setup */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
           <h3 className="font-bold text-gray-700 mb-3">1. Cover Setup</h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Book Title</label>
                 <input type="text" className="w-full p-2 border rounded text-sm" value={coverTitle} onChange={e => setCoverTitle(e.target.value)} />
@@ -208,8 +233,33 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
                 <input type="text" className="w-full p-2 border rounded text-sm" value={coverUrl} onChange={e => setCoverUrl(e.target.value)} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Title Size</label>
+                <select className="w-full p-2 border rounded text-sm" value={coverFontSize} onChange={e => setCoverFontSize(e.target.value)}>
+                    <option value="40">Small (40)</option>
+                    <option value="60">Medium (60)</option>
+                    <option value="80">Large (80)</option>
+                    <option value="120">Huge (120)</option>
+                </select>
+             </div>
+             <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Title Color</label>
+                <div className="flex gap-2">
+                    {['#000000', '#ffffff', '#dc2626', '#2563eb'].map(c => (
+                        <button 
+                            key={c}
+                            onClick={() => setCoverColor(c)}
+                            className={`w-8 h-8 rounded-full border-2 ${coverColor === c ? 'border-purple-600' : 'border-gray-200'}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+             </div>
+          </div>
         </div>
 
+        {/* Content */}
         <div className="mb-6">
           <h3 className="font-bold text-gray-700 mb-3">2. Add Pages</h3>
           <div className="flex justify-between mb-2">
@@ -228,8 +278,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           />
         </div>
 
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-
+        {/* Footer */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm font-medium text-purple-600 animate-pulse">{status}</div>
           <div className="flex gap-3">
