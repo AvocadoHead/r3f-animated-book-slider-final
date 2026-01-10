@@ -82,12 +82,27 @@ pageGeometry.setAttribute(
 
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
-const pageMaterials = [
-  new MeshStandardMaterial({ color: whiteColor }),
-  new MeshStandardMaterial({ color: "#111" }),
-  new MeshStandardMaterial({ color: whiteColor }),
-  new MeshStandardMaterial({ color: whiteColor }),
-];
+const materials = [
+      ...pageMaterials,
+      new MeshStandardMaterial({
+        color: whiteColor,
+        map: picture,
+        // Only apply roughness if it's NOT a generated cover (generated covers have text burned in)
+        ...(number === 0 && !front?.includes('data:image') 
+          ? { roughnessMap: pictureRoughness } 
+          : { roughness: 0.2, metalness: 0 }), // Standard paper settings
+        emissive: emissiveColor,
+        emissiveIntensity: 0,
+      }),
+      new MeshStandardMaterial({
+        color: whiteColor,
+        map: picture2,
+        roughness: 0.2, 
+        metalness: 0,
+        emissive: emissiveColor,
+        emissiveIntensity: 0,
+      }),
+    ];
 
 // --- Components ---
 
