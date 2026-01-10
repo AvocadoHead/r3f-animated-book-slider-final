@@ -2,7 +2,6 @@ import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
 // --- Helpers ---
-
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 export const createBlankTexture = () => {
@@ -17,7 +16,6 @@ export const createBlankTexture = () => {
 };
 
 // --- Initial Data ---
-
 const initialPages = [
   {
     id: generatePageId(),
@@ -34,18 +32,13 @@ const initialPages = [
 ];
 
 // --- Atoms ---
-
-// 1. Core State (Memory only to avoid Quota errors)
 export const bookPagesAtom = atom(initialPages);
 export const currentPageAtom = atom(0);
 export const editModeAtom = atom(false);
 export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
-
-// 2. Clipboard (This was missing!)
 export const clipboardAtom = atom(null);
 
-// 3. Derived State
 export const bookDataAtom = atom((get) => {
   const pages = get(bookPagesAtom);
   return pages.map(page => ({
@@ -55,6 +48,15 @@ export const bookDataAtom = atom((get) => {
 });
 
 // --- Actions ---
+
+// NEW: Helper to overwrite everything (Used by BookBuilder)
+export const setBookPagesAtom = atom(
+  null,
+  (get, set, newPages) => {
+    set(bookPagesAtom, newPages);
+    set(currentPageAtom, 0); // Always jump to cover
+  }
+);
 
 export const addPageAtom = atom(
   null,
@@ -114,7 +116,7 @@ export const bulkAddPagesAtom = atom(
   null,
   (get, set, newLeaves) => {
     const currentPages = get(bookPagesAtom);
-    
+    // Logic handles in Builder now, this just appends
     const newPageObjects = newLeaves.map((leaf, index) => ({
       id: generatePageId(),
       pageNumber: currentPages.length + index,
@@ -129,7 +131,6 @@ export const bulkAddPagesAtom = atom(
         type: 'page'
       }
     }));
-
     set(bookPagesAtom, [...currentPages, ...newPageObjects]);
   }
 );
@@ -139,21 +140,18 @@ export const resetBookAtom = atom(
   (get, set, { coverUrl } = {}) => {
     const coverTex = coverUrl || createBlankTexture();
     const blank = createBlankTexture();
-    
     const frontCover = {
       id: generatePageId(),
       pageNumber: 0,
       front: { texture: coverTex, type: 'cover' },
       back: { texture: blank, type: 'page' }
     };
-    
     const backCover = {
       id: generatePageId(),
       pageNumber: 1,
       front: { texture: blank, type: 'page' },
       back: { texture: coverTex, type: 'cover' }
     };
-
     set(bookPagesAtom, [frontCover, backCover]);
     set(currentPageAtom, 0);
   }
