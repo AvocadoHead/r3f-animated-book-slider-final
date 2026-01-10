@@ -17,11 +17,10 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-// Ensure this path points correctly to your store folder
 import { currentPageAtom, bookDataAtom } from "../store/atoms";
+
 // --- Helpers ---
 
-// 1x1 White Pixel (Safety Fallback to prevent crashes if texture is missing)
 const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
 
 const getTextureExtension = (name) => {
@@ -80,49 +79,26 @@ pageGeometry.setAttribute(
   new Float32BufferAttribute(skinWeights, 4)
 );
 
+// --- MATERIALS (Must be defined here!) ---
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
-const materials = [
-      ...pageMaterials,
-      new MeshStandardMaterial({
-        color: whiteColor,
-        map: picture,
-        // Only apply roughness if it's NOT a generated cover (generated covers have text burned in)
-        ...(number === 0 && !front?.includes('data:image') 
-          ? { roughnessMap: pictureRoughness } 
-          : { roughness: 0.2, metalness: 0 }), // Standard paper settings
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
-      }),
-      new MeshStandardMaterial({
-        color: whiteColor,
-        map: picture2,
-        roughness: 0.2, 
-        metalness: 0,
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
-      }),
-    ];
+
+const pageMaterials = [
+  new MeshStandardMaterial({ color: whiteColor }), // Spine/Edges
+  new MeshStandardMaterial({ color: "#111" }),     // Spine/Edges
+  new MeshStandardMaterial({ color: whiteColor }), // Top/Bottom
+  new MeshStandardMaterial({ color: whiteColor }), // Top/Bottom
+];
 
 // --- Components ---
 
 const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...props }) => {
   
-  // Robust URL Handler
   const getFinalUrl = (path) => {
-    // 1. Safety Check: Return white pixel if null/undefined
     if (!path) return WHITE_PIXEL;
-    
-    // 2. Already correct format (Data URL or Blob)
     if (isDataUrl(path)) return path;
-    
-    // 3. External URL (Google Drive / Web)
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    
-    // 4. Local Texture (Absolute path)
+    if (path.startsWith('http')) return path;
     if (path.startsWith('/textures/')) return path;
-    
-    // 5. Legacy Fallback (Construct local path)
     return `/textures/${path}.${getTextureExtension(path)}`;
   };
   
@@ -132,15 +108,11 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
   const texturesToLoad = [
     frontUrl,
     backUrl,
-    ...(number === 0 || number === totalPages - 1
-      ? [`/textures/book-cover-roughness.jpg`]
-      : []),
+    // Only load roughness map if we might actually use it (legacy covers)
+    ...(number === 0 || number === totalPages - 1 ? [`/textures/book-cover-roughness.jpg`] : []),
   ];
   
-  // useTexture will now always receive valid strings, preventing the crash
   const [picture, picture2, pictureRoughness] = useTexture(texturesToLoad);
-  
-  // Set color space for correct rendering
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
   
   const group = useRef();
@@ -163,27 +135,39 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       }
     }
     const skeleton = new Skeleton(bones);
+
+    // --- FIX FOR REFLECTIONS ---
+    // If the cover is a Data URL (generated), we do NOT want the glossy roughness map.
+    const isGeneratedCover = frontUrl.startsWith('data:');
+    const isLegacyCover = number === 0 && !isGeneratedCover && front.includes('שאל'); // Specific check for your legacy cover
+
+    const frontMaterial = new MeshStandardMaterial({
+      color: whiteColor,
+      map: picture,
+      // Logic: If it's page 0 AND it's a legacy texture -> Use Map. 
+      // Otherwise -> Matte finish (0.5 roughness)
+      ...(number === 0 && !isGeneratedCover
+        ? { roughnessMap: pictureRoughness }
+        : { roughness: 0.5, metalness: 0 }), 
+      emissive: emissiveColor,
+      emissiveIntensity: 0,
+    });
+
+    const backMaterial = new MeshStandardMaterial({
+      color: whiteColor,
+      map: picture2,
+      roughness: 0.5,
+      metalness: 0,
+      emissive: emissiveColor,
+      emissiveIntensity: 0,
+    });
+
     const materials = [
-      ...pageMaterials,
-      new MeshStandardMaterial({
-        color: whiteColor,
-        map: picture,
-        ...(number === 0 && !front?.includes('שאל')
-          ? { roughnessMap: pictureRoughness }
-          : { roughness: 0.1 }),
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
-      }),
-      new MeshStandardMaterial({
-        color: whiteColor,
-        map: picture2,
-        ...(number === totalPages - 1 && !back?.includes('שאל')
-          ? { roughnessMap: pictureRoughness }
-          : { roughness: 0.1 }),
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
-      }),
+      ...pageMaterials, // Index 0-3 (Edges)
+      frontMaterial,    // Index 4 (Front)
+      backMaterial      // Index 5 (Back)
     ];
+
     const mesh = new SkinnedMesh(pageGeometry, materials);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -191,7 +175,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2, pictureRoughness, number, front, back, totalPages]);
+  }, [picture, picture2, pictureRoughness, number, frontUrl, isDataUrl]);
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
