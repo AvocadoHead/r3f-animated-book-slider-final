@@ -1,8 +1,8 @@
 import { useAtom } from "jotai";
 import { useEffect, useState, useRef } from "react";
-import { bookPagesAtom, currentPageAtom, editModeAtom, languageAtom } from "../store/atoms";
+import { bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
-import { updatePageAtom } from "../store/atoms";
+import { BookBuilderModal } from "./BookBuilderModal"; // Import the new component
 
 const translations = {
   en: {
@@ -11,6 +11,7 @@ const translations = {
     cover: 'Cover',
     page: 'Page',
     backCover: 'Back Cover',
+    bookBuilder: 'Book Builder', // New translation
   },
   he: {
     editPage: 'ערוך עמוד',
@@ -18,6 +19,7 @@ const translations = {
     cover: 'כריכה',
     page: 'עמוד',
     backCover: 'כריכה אחורית',
+    bookBuilder: 'בנה ספר', // New translation
   }
 };
 
@@ -26,12 +28,14 @@ export const UI = () => {
   const [pages] = useAtom(bookPagesAtom);
   const [editorOpen, setEditorOpen] = useAtom(editModeAtom);
   const [editingPage, setEditingPage] = useState(null);
+  const [builderOpen, setBuilderOpen] = useState(false); // New State
   const [, updatePage] = useAtom(updatePageAtom);
   const [language, setLanguage] = useAtom(languageAtom);
   const videoRef = useRef(null);
   
   const t = translations[language];
 
+  // ... (handleEditCurrentPage and handleSaveEdit remain the same) ...
   const handleEditCurrentPage = () => {
     if (page >= 0 && page < pages.length) {
       const currentPageData = pages[page];
@@ -56,28 +60,21 @@ export const UI = () => {
       setEditingPage(null);
     }
   };
-
+  // ... (useEffects remain the same) ...
   useEffect(() => {
-    // Try to play audio, but don't fail if autoplay is blocked
     const audio = new Audio("/audios/page-flip-01a.mp3");
-    audio.play().catch(() => {
-      // Silently fail if autoplay is blocked by browser
-      // User will hear sound after first interaction
-    });
+    audio.play().catch(() => {});
   }, [page]);
   
   useEffect(() => {
-    // Auto-play video
     if (videoRef.current) {
-      videoRef.current.play().catch(() => {
-        // Silently fail if autoplay is blocked
-      });
+      videoRef.current.play().catch(() => {});
     }
   }, []);
 
   return (
     <>
-      {/* Circular Video - Top Left */}
+      {/* ... (Video, WhatsApp, Language buttons remain the same) ... */}
       <div className="fixed top-10 left-10 pointer-events-auto z-10">
         <div className="relative w-32 h-32 rounded-full overflow-hidden shadow-2xl border-4 border-white/20">
           <video
@@ -93,8 +90,7 @@ export const UI = () => {
         </div>
       </div>
 
-      {/* WhatsApp Link */}
-      <a
+       <a
         className="fixed top-10 left-44 pointer-events-auto z-10 bg-green-500 hover:bg-green-600 rounded-full p-2 shadow-lg transition-all"
         href="https://wa.me/97236030603"
         title="WhatsApp"
@@ -104,7 +100,6 @@ export const UI = () => {
         </svg>
       </a>
 
-      {/* Language Toggle */}
       <button
         className="fixed top-10 right-10 pointer-events-auto z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white py-2 px-4 rounded-lg shadow-lg transition-all"
         onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
@@ -112,13 +107,26 @@ export const UI = () => {
         {language === 'en' ? '🇮🇱 עברית' : '🇺🇸 English'}
       </button>
 
-      {/* Edit Page Button */}
-      <button
-        className="fixed top-10 right-36 pointer-events-auto z-10 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all"
-        onClick={handleEditCurrentPage}
-      >
-        ✏️ {t.editPage}
-      </button>
+      {/* Button Container */}
+      <div className="fixed top-10 right-36 pointer-events-auto z-10 flex gap-3">
+        {/* NEW: Book Builder Button */}
+        <button
+          className="bg-white/90 hover:bg-white text-purple-700 font-medium py-2 px-4 rounded-lg shadow-lg transition-all flex items-center gap-2"
+          onClick={() => setBuilderOpen(true)}
+        >
+          <span>🪄</span> {t.bookBuilder}
+        </button>
+
+        {/* Existing Edit Page Button */}
+        <button
+          className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all"
+          onClick={handleEditCurrentPage}
+        >
+          ✏️ {t.editPage}
+        </button>
+      </div>
+
+      {/* Modals */}
       {editorOpen && editingPage && (
         <EditorCanvas
           initialData={editingPage.data}
@@ -129,11 +137,15 @@ export const UI = () => {
           }}
         />
       )}
+
+      <BookBuilderModal 
+        isOpen={builderOpen} 
+        onClose={() => setBuilderOpen(false)} 
+      />
       
+      {/* ... (Main footer navigation remains the same) ... */}
       <main className="pointer-events-none select-none z-10 fixed inset-0 flex justify-between flex-col">
         <div className="flex-1"></div>
-        
-        {/* Navigation - Bottom */}
         <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-4">
           <div className="overflow-auto flex items-center gap-3 max-w-full px-6">
             {pages.map((pageData, index) => (
@@ -161,7 +173,6 @@ export const UI = () => {
             </button>
           </div>
         </div>
-        {/* Bottom Ticker */}
         <div className="w-full overflow-hidden pointer-events-auto bg-black/80 py-3">
           <div className="whitespace-nowrap">
             <div className="inline-block animate-scroll">
