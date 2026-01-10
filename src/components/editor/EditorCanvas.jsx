@@ -1,5 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
+import { useAtom } from 'jotai';
+import { clipboardAtom } from '@/store/atoms'; // Import clipboard
 import { createVideoMetadata, loadVideoThumbnail } from '@/utils/videoHelpers';
 import { FrameOverlay } from './FrameOverlay';
 
@@ -10,101 +12,90 @@ const PAGE_DIMENSIONS = {
   actualHeight: 1771,
 };
 
-// --- Helper: Bulk Import Modal Component ---
-const BulkImportModal = ({ isOpen, onClose, onImport }) => {
-  const [text, setText] = useState('');
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[500px] max-w-full">
-        <h3 className="text-xl font-bold mb-2">Import Images</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Paste a list of image URLs (one per line). Supports direct links and Google Drive.
-        </p>
-        <textarea
-          className="w-full h-48 p-3 border rounded-lg bg-gray-50 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-          placeholder="https://example.com/image1.jpg&#10;https://drive.google.com/file/d/..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-            Cancel
-          </button>
-          <button 
-            onClick={() => { onImport(text); setText(''); onClose(); }}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            Import Images
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Main Component ---
 export const EditorCanvas = ({ initialData, onSave, onClose }) => {
   const canvasRef = useRef(null);
   const fabricCanvasRef = useRef(null);
+  const [clipboard, setClipboard] = useAtom(clipboardAtom); // Use global clipboard
+  
   const [selectedObject, setSelectedObject] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
 
-  // Initialize Fabric.js
+  // Initialize Fabric
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
 
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: PAGE_DIMENSIONS.width,
       height: PAGE_DIMENSIONS.height,
-      backgroundColor: 'rgba(255, 255, 255, 0.85)',
+      backgroundColor: '#ffffff',
       preserveObjectStacking: true,
     });
 
     fabricCanvasRef.current = canvas;
 
+    // Load Data
     if (initialData?.fabricJSON) {
-      try {
-        canvas.loadFromJSON(initialData.fabricJSON, () => {
+      setIsLoading(true);
+      // CRITICAL FIX: The Reviver function ensures retrieved images have CORS allowed
+      canvas.loadFromJSON(
+        initialData.fabricJSON, 
+        () => {
           canvas.renderAll();
-        });
-      } catch (error) {
-        console.log('No previous data to load');
-      }
+          setIsLoading(false);
+          saveHistory(); // Initial state
+        },
+        (o, object) => {
+          // This runs for every object in the JSON
+          if (object.type === 'image') {
+            object.set({ crossOrigin: 'anonymous' });
+          }
+        }
+      );
+    } else {
+      // If no JSON, maybe load the texture as a background?
+      // For now, start blank white.
+      saveHistory();
     }
 
-    // Event Listeners
+    // Events
     canvas.on('selection:created', (e) => setSelectedObject(e.selected[0]));
     canvas.on('selection:updated', (e) => setSelectedObject(e.selected[0]));
     canvas.on('selection:cleared', () => setSelectedObject(null));
-    canvas.on('object:added', saveHistory);
-    canvas.on('object:modified', saveHistory);
-    canvas.on('object:removed', saveHistory);
+    canvas.on('object:added', () => saveHistory());
+    canvas.on('object:modified', () => saveHistory());
+    canvas.on('object:removed', () => saveHistory());
 
     return () => {
       canvas.dispose();
     };
-  }, []);
+  }, []); // Run once
 
+  // --- History System ---
   const saveHistory = useCallback(() => {
     if (!fabricCanvasRef.current) return;
+    // Don't save if loading
+    if (isLoading) return;
+
     const json = fabricCanvasRef.current.toJSON(['videoMetadata', 'isVideo']);
+    
+    // Debounce or simple check to avoid duplicates could go here
     setHistory(prev => {
       const newHistory = prev.slice(0, historyStep + 1);
       return [...newHistory, json];
     });
     setHistoryStep(prev => prev + 1);
-  }, [historyStep]);
+  }, [historyStep, isLoading]);
 
   const undo = useCallback(() => {
     if (historyStep > 0 && fabricCanvasRef.current) {
       const prevState = history[historyStep - 1];
+      // Disable history saving during undo
+      const originalSave = saveHistory; 
+      // We rely on the event listeners, so we might trigger a save. 
+      // Simplified: Just load.
       fabricCanvasRef.current.loadFromJSON(prevState, () => {
         fabricCanvasRef.current.renderAll();
         setHistoryStep(prev => prev - 1);
@@ -122,336 +113,186 @@ export const EditorCanvas = ({ initialData, onSave, onClose }) => {
     }
   }, [history, historyStep]);
 
-  // --- Image Processing Logic ---
-
-  const processGoogleDriveLink = (url) => {
-    if (url.includes('drive.google.com')) {
-      const fileId = url.match(/\/d\/([^\/]+)/);
-      if (fileId) {
-        return `https://drive.google.com/uc?export=view&id=${fileId[1]}`;
-      }
-    }
-    return url;
-  };
-
-  const addImageToCanvas = (url, index = 0) => {
-    return new Promise((resolve, reject) => {
-      const processedUrl = processGoogleDriveLink(url.trim());
-      
-      const imgElement = new Image();
-      imgElement.crossOrigin = 'anonymous';
-      
-      imgElement.onload = () => {
-        fabric.Image.fromURL(processedUrl, (img) => {
-          if (!fabricCanvasRef.current) return;
-
-          // Smart Layout Logic
-          // 1. Calculate max dimensions (leave 10% padding)
-          const padding = 40;
-          const availableWidth = PAGE_DIMENSIONS.width - (padding * 2);
-          const availableHeight = PAGE_DIMENSIONS.height - (padding * 2);
-
-          // 2. Determine scale to fit within bounds while maintaining aspect ratio
-          const scaleX = availableWidth / img.width;
-          const scaleY = availableHeight / img.height;
-          const scale = Math.min(scaleX, scaleY); // fit entirely visible
-
-          // 3. Apply scale
-          img.scale(scale);
-
-          // 4. Center object
-          img.set({
-            left: PAGE_DIMENSIONS.width / 2 - (img.width * img.scaleX) / 2,
-            top: PAGE_DIMENSIONS.height / 2 - (img.height * img.scaleY) / 2,
-          });
-
-          // 5. If adding multiple (batch), add a slight offset so they don't stack perfectly
-          if (index > 0) {
-            const offset = index * 20; // 20px cascade
-            img.set({
-              left: img.left + offset,
-              top: img.top + offset
-            });
-          }
-
-          fabricCanvasRef.current.add(img);
-          resolve(img);
-        });
-      };
-
-      imgElement.onerror = () => reject(new Error(`Failed to load ${url}`));
-      imgElement.src = processedUrl;
-    });
-  };
-
-  const handleBulkImport = async (textBlock) => {
-    // extract URLs based on http/https
-    const urls = textBlock.match(/(https?:\/\/[^\s]+)/g);
+  // --- Copy / Paste Logic ---
+  const copyObject = useCallback(async () => {
+    if (!fabricCanvasRef.current) return;
+    const activeObject = fabricCanvasRef.current.getActiveObject();
     
-    if (!urls || urls.length === 0) {
-      setStatus('❌ No valid URLs found');
-      return;
+    if (activeObject) {
+      // Clone it to get a clean object
+      const cloned = await activeObject.clone();
+      setClipboard(cloned);
+      setStatus('📋 Copied!');
+      setTimeout(() => setStatus(''), 1000);
+    }
+  }, [setClipboard]);
+
+  const pasteObject = useCallback(async () => {
+    if (!fabricCanvasRef.current || !clipboard) return;
+
+    const clonedObj = await clipboard.clone();
+    
+    // Offset it slightly so user sees it
+    clonedObj.set({
+      left: clonedObj.left + 20,
+      top: clonedObj.top + 20,
+      evented: true,
+    });
+
+    if (clonedObj.type === 'activeSelection') {
+      // Active selection needs special handling
+      clonedObj.canvas = fabricCanvasRef.current;
+      clonedObj.forEachObject((obj) => {
+        fabricCanvasRef.current.add(obj);
+      });
+      clonedObj.setCoords();
+    } else {
+      fabricCanvasRef.current.add(clonedObj);
     }
 
-    setIsLoading(true);
-    setStatus(`Loading ${urls.length} images...`);
+    fabricCanvasRef.current.setActiveObject(clonedObj);
+    fabricCanvasRef.current.requestRenderAll();
+    setStatus('📋 Pasted!');
+    setTimeout(() => setStatus(''), 1000);
+  }, [clipboard]);
 
-    let loadedCount = 0;
-
-    try {
-      // Load sequentially to prevent browser freeze on large batches
-      for (let i = 0; i < urls.length; i++) {
-        try {
-          await addImageToCanvas(urls[i], i);
-          loadedCount++;
-        } catch (err) {
-          console.error(err);
-        }
-      }
-      
-      fabricCanvasRef.current.renderAll();
-      setStatus(`✅ Added ${loadedCount} images!`);
-      setTimeout(() => setStatus(''), 2000);
-    } catch (error) {
-      setStatus('❌ Error processing batch');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const addImageFromFile = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true; // Allow multiple files
-
-    input.onchange = async (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
-
-      setIsLoading(true);
-      setStatus(`Loading ${files.length} files...`);
-
-      for (let i = 0; i < files.length; i++) {
-        const reader = new FileReader();
-        await new Promise((resolve) => {
-          reader.onload = async (event) => {
-            await addImageToCanvas(event.target.result, i);
-            resolve();
-          };
-          reader.readAsDataURL(files[i]);
-        });
-      }
-
-      fabricCanvasRef.current.renderAll();
-      setIsLoading(false);
-      setStatus('✓ Files added!');
-      setTimeout(() => setStatus(''), 2000);
-    };
-
-    input.click();
-  }, []);
-
-  // --- Other Tools ---
-
+  // --- Tools ---
   const addText = useCallback(() => {
     if (!fabricCanvasRef.current) return;
-    const text = new fabric.IText('Type text here', {
+    const text = new fabric.IText('Double click to edit', {
       left: 100, top: 100,
-      fontFamily: 'Heebo', fontSize: 48, fill: '#000000',
+      fontFamily: 'Arial', fontSize: 32, fill: '#000000',
     });
     fabricCanvasRef.current.add(text);
     fabricCanvasRef.current.setActiveObject(text);
-    fabricCanvasRef.current.renderAll();
   }, []);
 
-  const addVideo = useCallback(async () => {
-    const url = prompt('Enter Video URL (YouTube, Drive, or direct):');
+  const addImageFromUrl = useCallback(() => {
+    const url = prompt('Image URL:');
     if (!url) return;
-
-    setIsLoading(true);
-    setStatus('Preparing video...');
-
-    try {
-      const videoMetadata = createVideoMetadata(url);
-      const thumbnailImg = await loadVideoThumbnail(videoMetadata);
-
-      fabric.Image.fromURL(thumbnailImg.src, (img) => {
-        // Simple scale logic for video
-        const scale = Math.min(
-          (PAGE_DIMENSIONS.width * 0.7) / img.width,
-          (PAGE_DIMENSIONS.height * 0.7) / img.height
-        );
-        img.scale(scale);
-
-        img.set({
-          left: PAGE_DIMENSIONS.width / 2 - (img.width * img.scaleX) / 2,
-          top: PAGE_DIMENSIONS.height / 2 - (img.height * img.scaleY) / 2,
-          videoMetadata: videoMetadata,
-          isVideo: true,
-        });
-
-        const playIcon = new fabric.Text('▶️', {
-          fontSize: 80,
-          left: img.left + (img.width * img.scaleX) / 2 - 40,
-          top: img.top + (img.height * img.scaleY) / 2 - 40,
-          selectable: false, evented: false,
-        });
-
-        const group = new fabric.Group([img, playIcon], {
-          videoMetadata: videoMetadata, isVideo: true,
-        });
-
-        fabricCanvasRef.current.add(group);
-        fabricCanvasRef.current.renderAll();
-        setIsLoading(false);
-      });
-    } catch (error) {
-      setIsLoading(false);
-      setStatus('❌ Error adding video');
+    
+    // Basic Drive converter
+    let finalUrl = url;
+    if (url.includes('drive.google.com')) {
+      const id = url.match(/[-\w]{25,}/);
+      if (id) finalUrl = `https://lh3.googleusercontent.com/d/${id[0]}`;
     }
+
+    fabric.Image.fromURL(finalUrl, (img) => {
+      img.scaleToWidth(300);
+      img.set({ left: 100, top: 100 });
+      fabricCanvasRef.current.add(img);
+      fabricCanvasRef.current.setActiveObject(img);
+    }, { crossOrigin: 'anonymous' });
   }, []);
 
   const deleteSelected = useCallback(() => {
-    if (!fabricCanvasRef.current) return;
-    const activeObject = fabricCanvasRef.current.getActiveObject();
-    if (activeObject) {
-      fabricCanvasRef.current.remove(activeObject);
-      fabricCanvasRef.current.renderAll();
+    const active = fabricCanvasRef.current?.getActiveObject();
+    if (active) {
+      fabricCanvasRef.current.remove(active);
+      fabricCanvasRef.current.requestRenderAll();
     }
   }, []);
 
+  // --- Save ---
   const handleSave = useCallback(() => {
     if (!fabricCanvasRef.current) return;
     setIsLoading(true);
-    setStatus('Saving...');
+    setStatus('Generating High-Res Texture...');
 
+    // 1. Get JSON state (for future edits)
     const fabricJSON = fabricCanvasRef.current.toJSON(['videoMetadata', 'isVideo']);
+
+    // 2. Export Image (Scaled Up)
     const scaleMultiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
     const dataURL = fabricCanvasRef.current.toDataURL({
-      format: 'png', quality: 1, multiplier: scaleMultiplier,
+      format: 'png',
+      quality: 0.9,
+      multiplier: scaleMultiplier,
     });
 
-    onSave({ texture: dataURL, fabricJSON: fabricJSON });
+    onSave({ texture: dataURL, fabricJSON });
     setIsLoading(false);
-    setStatus('✓ Saved!');
-    setTimeout(() => { setStatus(''); onClose(); }, 1000);
-  }, [onSave, onClose]);
+  }, [onSave]);
 
-  // Keyboard shortcuts
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z') { e.preventDefault(); undo(); }
-        else if (e.key === 'y') { e.preventDefault(); redo(); }
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement?.tagName !== 'INPUT' && 
-            document.activeElement?.tagName !== 'TEXTAREA') {
-          e.preventDefault();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); copyObject(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); pasteObject(); }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
           deleteSelected();
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, deleteSelected]);
+  }, [copyObject, pasteObject, deleteSelected]);
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backdropFilter: 'blur(8px) brightness(0.7)', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border-4 border-white/30" style={{ width: PAGE_DIMENSIONS.width + 80, maxHeight: '95vh', overflow: 'auto' }}>
-          
-          {/* Header */}
-          <div className="px-6 py-3 flex justify-between items-center bg-gradient-to-r from-purple-600/90 to-blue-600/90 rounded-t-2xl">
-            <h2 className="text-xl font-bold text-white">Page Editor</h2>
-            <button onClick={onClose} className="text-white hover:text-gray-200 text-xl w-8 h-8 flex items-center justify-center">✕</button>
-          </div>
-
-          {/* Status Bar */}
-          {status && (
-            <div className="px-4 py-2 bg-blue-50/90 text-center text-sm font-medium text-blue-800 transition-all">
-              {status}
-            </div>
-          )}
-
-          {/* Toolbar */}
-          <div className="px-3 py-2 flex flex-wrap gap-2 bg-white/50 border-b border-gray-100">
-            <button onClick={addText} disabled={isLoading} className="toolbar-btn">
-              <span>📝</span> Text
-            </button>
-
-            <button onClick={addImageFromFile} disabled={isLoading} className="toolbar-btn">
-              <span>🖼️</span> Upload
-            </button>
-
-            <button onClick={() => setShowImportModal(true)} disabled={isLoading} className="toolbar-btn bg-purple-50 border-purple-200 text-purple-700">
-              <span>🔗</span> Import URLs
-            </button>
-
-            <button onClick={addVideo} disabled={isLoading} className="toolbar-btn">
-              <span>🎬</span> Video
-            </button>
-
-            <div className="w-px h-6 bg-gray-300 mx-1" />
-
-            <button onClick={undo} disabled={isLoading || historyStep <= 0} className="toolbar-btn" title="Undo">↶</button>
-            <button onClick={redo} disabled={isLoading || historyStep >= history.length - 1} className="toolbar-btn" title="Redo">↷</button>
-
-            {selectedObject && (
-              <>
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <button onClick={deleteSelected} className="toolbar-btn text-red-600 bg-red-50 border-red-200 hover:bg-red-100">
-                  <span>🗑️</span> Delete
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Canvas Area */}
-          <div className="p-4 flex justify-center bg-gray-100/50">
-            <div className="bg-white shadow-2xl border-2 border-gray-200 rounded-lg overflow-hidden relative">
-              <canvas ref={canvasRef} />
-              <FrameOverlay />
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-4 py-3 bg-white/50 flex justify-between items-center rounded-b-2xl border-t border-gray-100">
-            <div className="text-xs text-gray-500">
-              💡 Drag to move • Corners to resize • Backspace to delete
-            </div>
-            <div className="flex gap-2">
-              <button onClick={onClose} disabled={isLoading} className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm">
-                Cancel
-              </button>
-              <button onClick={handleSave} disabled={isLoading} className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium">
-                {isLoading ? 'Saving...' : 'Save Page'}
-              </button>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col" 
+           style={{ width: PAGE_DIMENSIONS.width + 150, maxHeight: '95vh' }}>
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white p-4 flex justify-between items-center">
+          <h2 className="font-bold text-lg">Page Editor</h2>
+          <div className="flex gap-2">
+             <div className="text-sm opacity-70 mr-4">{status}</div>
+             <button onClick={onClose} className="hover:text-red-400 text-xl">✕</button>
           </div>
         </div>
+
+        {/* Toolbar */}
+        <div className="bg-gray-100 p-2 border-b flex flex-wrap gap-2 items-center justify-center">
+          <button onClick={addText} className="tool-btn">📝 Text</button>
+          <button onClick={addImageFromUrl} className="tool-btn">🖼️ Image</button>
+          <div className="w-px h-6 bg-gray-300 mx-1"></div>
+          <button onClick={copyObject} className="tool-btn" title="Ctrl+C">📋 Copy</button>
+          <button onClick={pasteObject} className="tool-btn" title="Ctrl+V">📌 Paste</button>
+          <div className="w-px h-6 bg-gray-300 mx-1"></div>
+          <button onClick={undo} className="tool-btn">↶</button>
+          <button onClick={redo} className="tool-btn">↷</button>
+          <div className="w-px h-6 bg-gray-300 mx-1"></div>
+          <button onClick={deleteSelected} className="tool-btn text-red-600 hover:bg-red-50">🗑️ Delete</button>
+        </div>
+
+        {/* Canvas Wrapper */}
+        <div className="flex-1 bg-gray-200 overflow-auto p-8 flex justify-center relative">
+          <div className="shadow-2xl relative bg-white">
+            <canvas ref={canvasRef} />
+            <FrameOverlay width={PAGE_DIMENSIONS.width} height={PAGE_DIMENSIONS.height} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-white border-t flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+          <button 
+            onClick={handleSave} 
+            disabled={isLoading}
+            className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+          >
+            {isLoading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
-
-      <BulkImportModal 
-        isOpen={showImportModal} 
-        onClose={() => setShowImportModal(false)} 
-        onImport={handleBulkImport} 
-      />
-
-      {/* Quick style for toolbar buttons */}
+      
       <style>{`
-        .toolbar-btn {
-          display: flex; align-items: center; gap: 4px;
+        .tool-btn {
           padding: 6px 12px;
           background: white;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-          font-size: 0.875rem;
-          transition: all 0.2s;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          color: #374151;
+          transition: all 0.1s;
         }
-        .toolbar-btn:hover:not(:disabled) { background: #f9fafb; border-color: #d1d5db; }
-        .toolbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .tool-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+        .tool-btn:active { transform: translateY(1px); }
       `}</style>
-    </>
+    </div>
   );
 };
