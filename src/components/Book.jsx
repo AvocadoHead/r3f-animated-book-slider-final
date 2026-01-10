@@ -17,7 +17,8 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookDataAtom } from "../../store/atoms";
+// FIX: Correct path for file in src/components/
+import { currentPageAtom, bookDataAtom } from "../store/atoms";
 
 const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
 
@@ -28,7 +29,6 @@ const getTextureExtension = (name) => {
 
 const isDataUrl = (str) => str && (str.startsWith('data:') || str.startsWith('blob:'));
 
-// Configuration
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
 const insideCurveStrength = 0.18;
@@ -40,7 +40,6 @@ const PAGE_DEPTH = 0.003;
 const PAGE_SEGMENTS = 30;
 const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
 
-// Geometry
 const pageGeometry = new BoxGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_DEPTH, PAGE_SEGMENTS, 2);
 pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
 const position = pageGeometry.attributes.position;
@@ -61,7 +60,6 @@ pageGeometry.setAttribute("skinWeight", new Float32BufferAttribute(skinWeights, 
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
 
-// Edges materials
 const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
   new MeshStandardMaterial({ color: "#111" }),
@@ -106,7 +104,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     }
     const skeleton = new Skeleton(bones);
 
-    // FIX: High roughness (0.9) prevents glare/whitewashing on the right page
+    // FIX: High roughness (0.9) prevents glare/whitewashing
     const frontMaterial = new MeshStandardMaterial({
       color: whiteColor,
       map: picture,
@@ -139,7 +137,6 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
     
-    // Highlight logic
     const emissiveIntensity = highlighted ? 0.1 : 0;
     skinnedMeshRef.current.material[4].emissiveIntensity =
       skinnedMeshRef.current.material[5].emissiveIntensity = MathUtils.lerp(
@@ -199,8 +196,6 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       onPointerLeave={(e) => { e.stopPropagation(); setHighlighted(false); }}
       onClick={(e) => {
         e.stopPropagation();
-        // FIX: Precise click logic
-        // If opened (Left side), go back 1. If closed (Right side), go forward 1.
         setPage(opened ? number : number + 1);
         setHighlighted(false);
       }}
