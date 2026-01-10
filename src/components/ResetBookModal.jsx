@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAtom } from 'jotai';
-import { resetBookAtom } from '../store/atoms';
+// CORRECT IMPORT for a file in src/components/pages/
+import { resetBookAtom } from '../../store/atoms';
 
 export const ResetBookModal = ({ isOpen, onClose }) => {
   const [, resetBook] = useAtom(resetBookAtom);
@@ -38,18 +39,8 @@ export const ResetBookModal = ({ isOpen, onClose }) => {
         </div>
 
         <div className="flex justify-end gap-3">
-          <button 
-            onClick={onClose} 
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleReset}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
-          >
-            Create New Book
-          </button>
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={handleReset} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Create New Book</button>
         </div>
       </div>
     </div>
