@@ -18,8 +18,7 @@ import {
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
 // Ensure this path points correctly to your store folder
-import { currentPageAtom, bookDataAtom } from "../../store/atoms";
-
+import { currentPageAtom, bookDataAtom } from "../store/atoms";
 // --- Helpers ---
 
 // 1x1 White Pixel (Safety Fallback to prevent crashes if texture is missing)
