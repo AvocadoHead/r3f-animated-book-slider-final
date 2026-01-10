@@ -10,7 +10,6 @@ import { ResetBookModal } from "./ResetBookModal";
 import { BookListModal } from "./BookListModal";
 import { supabase } from "../lib/supabase"; 
 import { AuthButton } from './AuthButton';
-// 1. Import the hook
 import { useAuth } from "../hooks/useAuth"; 
 
 const translations = {
@@ -25,7 +24,6 @@ const translations = {
 };
 
 export const UI = () => {
-  // Atoms
   const [page, setPage] = useAtom(currentPageAtom);
   const [pages] = useAtom(bookPagesAtom);
   const [currentBookId, setCurrentBookId] = useAtom(currentBookIdAtom);
@@ -36,7 +34,6 @@ export const UI = () => {
   const [, addPage] = useAtom(addPageAtom);
   const [language, setLanguage] = useAtom(languageAtom);
 
-  // Local State
   const [editingPage, setEditingPage] = useState(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -44,88 +41,55 @@ export const UI = () => {
   const [menuOpen, setMenuOpen] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
   
-  // 2. Use the Auth Hook (Source of Truth)
-  const { user } = useAuth();
+  const { user } = useAuth(); // Hook handles auth state
   
   const videoRef = useRef(null);
   const t = translations[language];
 
-  // --- DB Sync Logic ---
-  // Load book when user logs in (only if we haven't loaded one)
+  // --- DB Logic ---
   useEffect(() => {
     if (user && !currentBookId) {
-        loadBookFromDB(user.id);
+        // Load latest book on login
+        supabase.from('books').select('content, id').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1).single()
+        .then(({ data }) => {
+            if (data) { setBookPages(data.content); setCurrentBookId(data.id); }
+        });
     }
-  }, [user]); // Runs when user status changes
-
-  const loadBookFromDB = async (userId) => {
-    // Attempt to load the most recently updated book
-    const { data } = await supabase
-      .from('books')
-      .select('content, id')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (data) {
-      setBookPages(data.content); 
-      setCurrentBookId(data.id);
-    }
-  };
+  }, [user]);
 
   const saveBookToDB = async () => {
     if (!user) return;
     setIsSyncing(true);
-    
     const bookPayload = {
-        user_id: user.id,
-        content: pages,
-        title: builderData.title || 'Untitled Book',
-        cover_url: pages[0]?.front?.texture || null,
-        updated_at: new Date()
+        user_id: user.id, content: pages, title: builderData.title || 'Untitled Book',
+        cover_url: pages[0]?.front?.texture || null, updated_at: new Date()
     };
-
-    if (currentBookId) {
-        await supabase.from('books').update(bookPayload).eq('id', currentBookId);
-    } else {
+    if (currentBookId) await supabase.from('books').update(bookPayload).eq('id', currentBookId);
+    else {
         const { data } = await supabase.from('books').insert(bookPayload).select().single();
         if (data) setCurrentBookId(data.id);
     }
     setIsSyncing(false);
   };
 
-  // Auto-save
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(() => saveBookToDB(), 3000);
     return () => clearTimeout(timer);
   }, [pages, user]);
 
-  // Clean URL hash after successful login
-  useEffect(() => {
-    if (user && window.location.hash.includes('access_token')) {
-        window.history.replaceState(null, '', window.location.pathname);
-    }
-  }, [user]);
-
-  // --- Auth Handlers ---
+  // --- Handlers ---
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ 
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-    });
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
   };
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();
   };
 
-  // --- Action Handlers ---
   const handleAddPage = () => {
-      addPage(); 
-      setPage(pages.length); 
+      addPage();
+      setPage(pages.length);
       setMenuOpen(false);
   };
 
@@ -163,16 +127,9 @@ export const UI = () => {
   useEffect(() => { const audio = new Audio("/audios/page-flip-01a.mp3"); audio.play().catch(()=>{}); }, [page]);
   useEffect(() => { if (videoRef.current) videoRef.current.play().catch(()=>{}); }, []);
 
-  // --- Components ---
   const MenuButton = ({ onClick, icon, label, danger = false }) => (
-    <button 
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-        danger ? 'text-red-400 hover:bg-red-900/30' : 'text-white hover:bg-white/10'
-      }`}
-    >
-      <span className="text-xl">{icon}</span>
-      <span className="text-sm font-medium">{label}</span>
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${danger ? 'text-red-400 hover:bg-red-900/30' : 'text-white hover:bg-white/10'}`}>
+      <span className="text-xl">{icon}</span><span className="text-sm font-medium">{label}</span>
     </button>
   );
 
@@ -197,6 +154,7 @@ export const UI = () => {
           </div>
         )}
 
+        {/* Edit Button - Visible ONLY when logged in */}
         {user && (
             <button 
                 className="group flex items-center gap-2 bg-white text-gray-900 px-5 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95"
@@ -207,6 +165,7 @@ export const UI = () => {
             </button>
         )}
 
+        {/* Hamburger Menu Toggle */}
         <div className="relative">
             <button 
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -217,8 +176,11 @@ export const UI = () => {
                 <span className="text-xl">{menuOpen ? '✕' : '☰'}</span>
             </button>
 
+            {/* Dropdown Menu */}
             {menuOpen && (
                 <div className="absolute top-14 right-0 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right">
+                    
+                    {/* User Profile / Login */}
                     <div className="p-4 border-b border-white/10 bg-white/5">
                         <AuthButton 
                             language={language} 
@@ -228,22 +190,25 @@ export const UI = () => {
                         />
                     </div>
 
+                    {/* Menu Actions */}
                     <div className="py-2">
                         {user ? (
                             <>
                                 <MenuButton icon="📚" label={t.library} onClick={() => { setLibraryOpen(true); setMenuOpen(false); }} />
-                                <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} />
+                                {/* Add Page Button in Menu */}
+                                <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} /> 
                                 <MenuButton icon="🪄" label={t.bookBuilder} onClick={() => { setBuilderOpen(true); setMenuOpen(false); }} />
                                 <div className="h-px bg-white/10 mx-4 my-2" />
                                 <MenuButton icon="🗑️" label={t.newBook} onClick={() => { setResetOpen(true); setMenuOpen(false); }} danger />
                             </>
                         ) : (
                             <div className="px-4 py-3 text-center text-xs text-gray-500 italic">
-                                Sign in to edit and save
+                                Sign in to access tools
                             </div>
                         )}
                     </div>
 
+                    {/* Footer */}
                     <div className="p-3 border-t border-white/10 bg-black/20 flex items-center justify-between">
                         <button 
                             onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
