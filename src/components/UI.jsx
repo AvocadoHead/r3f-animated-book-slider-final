@@ -9,6 +9,7 @@ import { BookBuilderModal } from "./BookBuilderModal";
 import { ResetBookModal } from "./ResetBookModal";
 import { BookListModal } from "./BookListModal";
 import { supabase } from "../lib/supabase"; 
+import { AuthButton } from './AuthButton';
 
 const translations = {
   en: { 
@@ -59,30 +60,49 @@ export const UI = () => {
 
   // --- Auth & DB ---
   useEffect(() => {
+    // 1. Check active session immediately
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) loadBookFromDB(session.user.id);
+      if (session?.user) {
+        setUser(session.user);
+        loadBookFromDB(session.user.id);
+      }
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) loadBookFromDB(session.user.id);
+
+    // 2. Listen for auth changes (Sign In, Sign Out, Token Refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // 'SIGNED_IN' is the event fired when the token is parsed from URL
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setUser(session?.user ?? null);
+        if (session?.user) loadBookFromDB(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setMenuOpen(false); // Close menu on logout
+      }
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google' });
+    // Redirect to same URL but allow Supabase to handle the return
+    await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin 
+        }
+    });
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    setUser(null);
     window.location.reload();
   };
 
   const loadBookFromDB = async (userId) => {
-    setIsSyncing(true);
-    // Future logic: Load last edited book
-    setIsSyncing(false);
+    // This is where you would load the user's *last active* book
+    // For now, we leave the default book unless they pick one from library
+    console.log("User Loaded:", userId);
   };
 
   const saveBookToDB = async () => {
@@ -176,7 +196,6 @@ export const UI = () => {
       {/* --- HEADER UI --- */}
       <div className="fixed top-6 right-6 pointer-events-auto z-20 flex items-center gap-3">
         
-        {/* Sync Indicator */}
         {isSyncing && (
           <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -184,7 +203,7 @@ export const UI = () => {
           </div>
         )}
 
-        {/* Primary Action: Edit Page - HIDDEN IF NOT LOGGED IN */}
+        {/* Edit Page - Only if logged in */}
         {user && (
             <button 
                 className="group flex items-center gap-2 bg-white text-gray-900 px-5 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95"
@@ -218,7 +237,7 @@ export const UI = () => {
                                     <img src={user.user_metadata.avatar_url} alt="Profile" className="w-10 h-10 rounded-full border-2 border-purple-500" />
                                 ) : (
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
-                                        {user.email[0].toUpperCase()}
+                                        {user.email?.[0].toUpperCase()}
                                     </div>
                                 )}
                                 <div className="flex-1 min-w-0">
@@ -229,13 +248,12 @@ export const UI = () => {
                         ) : (
                             <div className="text-center">
                                 <p className="text-sm text-gray-400 mb-3">Sign in to edit and save</p>
-                                <button 
-                                    onClick={handleLogin}
-                                    className="w-full bg-white text-gray-900 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <img src="https://www.google.com/favicon.ico" alt="G" className="w-3.5 h-3.5" />
-                                    {t.login}
-                                </button>
+                                <AuthButton 
+                                    language={language} 
+                                    user={user} 
+                                    onLogin={handleLogin} 
+                                    onLogout={handleLogout} 
+                                />
                             </div>
                         )}
                     </div>
@@ -280,7 +298,6 @@ export const UI = () => {
         </div>
       </div>
 
-      {/* Modals */}
       {editorOpen && editingPage && (
         <EditorCanvas
           initialData={editingPage.data}
@@ -295,7 +312,6 @@ export const UI = () => {
       <ResetBookModal isOpen={resetOpen} onClose={() => setResetOpen(false)} />
       <BookListModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} />
       
-      {/* Footer Nav */}
       <main className="pointer-events-none select-none z-10 fixed inset-0 flex justify-between flex-col">
         <div className="flex-1"></div>
         <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-6">
