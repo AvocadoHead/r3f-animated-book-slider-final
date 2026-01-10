@@ -17,9 +17,7 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookDataAtom } from "../store/atoms";
-
-// --- Helpers ---
+import { currentPageAtom, bookDataAtom } from "../../store/atoms";
 
 const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
 
@@ -28,12 +26,9 @@ const getTextureExtension = (name) => {
   return (name.includes('שאל') || name.includes('cover') || name.includes('כריכה') || name.includes('ספר') || name.includes('IzenBook') || name === 'back') ? 'png' : 'jpg';
 };
 
-const isDataUrl = (str) => {
-  return str && (str.startsWith('data:') || str.startsWith('blob:'));
-};
+const isDataUrl = (str) => str && (str.startsWith('data:') || str.startsWith('blob:'));
 
-// --- Constants ---
-
+// Configuration
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
 const insideCurveStrength = 0.18;
@@ -45,22 +40,13 @@ const PAGE_DEPTH = 0.003;
 const PAGE_SEGMENTS = 30;
 const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
 
-// --- Geometry Setup ---
-
-const pageGeometry = new BoxGeometry(
-  PAGE_WIDTH,
-  PAGE_HEIGHT,
-  PAGE_DEPTH,
-  PAGE_SEGMENTS,
-  2
-);
+// Geometry
+const pageGeometry = new BoxGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_DEPTH, PAGE_SEGMENTS, 2);
 pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
-
 const position = pageGeometry.attributes.position;
 const vertex = new Vector3();
 const skinIndexes = [];
 const skinWeights = [];
-
 for (let i = 0; i < position.count; i++) {
   vertex.fromBufferAttribute(position, i);
   const x = vertex.x;
@@ -69,31 +55,21 @@ for (let i = 0; i < position.count; i++) {
   skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
   skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
 }
+pageGeometry.setAttribute("skinIndex", new Uint16BufferAttribute(skinIndexes, 4));
+pageGeometry.setAttribute("skinWeight", new Float32BufferAttribute(skinWeights, 4));
 
-pageGeometry.setAttribute(
-  "skinIndex",
-  new Uint16BufferAttribute(skinIndexes, 4)
-);
-pageGeometry.setAttribute(
-  "skinWeight",
-  new Float32BufferAttribute(skinWeights, 4)
-);
-
-// --- MATERIALS (Must be defined here!) ---
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
 
+// Edges materials
 const pageMaterials = [
-  new MeshStandardMaterial({ color: whiteColor }), // Spine/Edges
-  new MeshStandardMaterial({ color: "#111" }),     // Spine/Edges
-  new MeshStandardMaterial({ color: whiteColor }), // Top/Bottom
-  new MeshStandardMaterial({ color: whiteColor }), // Top/Bottom
+  new MeshStandardMaterial({ color: whiteColor }),
+  new MeshStandardMaterial({ color: "#111" }),
+  new MeshStandardMaterial({ color: whiteColor }),
+  new MeshStandardMaterial({ color: whiteColor }),
 ];
 
-// --- Components ---
-
 const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...props }) => {
-  
   const getFinalUrl = (path) => {
     if (!path) return WHITE_PIXEL;
     if (isDataUrl(path)) return path;
@@ -108,7 +84,6 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
   const texturesToLoad = [
     frontUrl,
     backUrl,
-    // Only load roughness map if we might actually use it (legacy covers)
     ...(number === 0 || number === totalPages - 1 ? [`/textures/book-cover-roughness.jpg`] : []),
   ];
   
@@ -125,30 +100,19 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     for (let i = 0; i <= PAGE_SEGMENTS; i++) {
       let bone = new Bone();
       bones.push(bone);
-      if (i === 0) {
-        bone.position.x = 0;
-      } else {
-        bone.position.x = SEGMENT_WIDTH;
-      }
-      if (i > 0) {
-        bones[i - 1].add(bone);
-      }
+      if (i === 0) bone.position.x = 0;
+      else bone.position.x = SEGMENT_WIDTH;
+      if (i > 0) bones[i - 1].add(bone);
     }
     const skeleton = new Skeleton(bones);
 
-    // --- FIX FOR REFLECTIONS ---
-    // If the cover is a Data URL (generated), we do NOT want the glossy roughness map.
-    const isGeneratedCover = frontUrl.startsWith('data:');
-    const isLegacyCover = number === 0 && !isGeneratedCover && front.includes('שאל'); // Specific check for your legacy cover
-
+    // FIX: High roughness (0.9) prevents glare/whitewashing on the right page
     const frontMaterial = new MeshStandardMaterial({
       color: whiteColor,
       map: picture,
-      // Logic: If it's page 0 AND it's a legacy texture -> Use Map. 
-      // Otherwise -> Matte finish (0.5 roughness)
-      ...(number === 0 && !isGeneratedCover
+      ...(number === 0 && !frontUrl.startsWith('data:')
         ? { roughnessMap: pictureRoughness }
-        : { roughness: 0.5, metalness: 0 }), 
+        : { roughness: 0.9, metalness: 0 }), 
       emissive: emissiveColor,
       emissiveIntensity: 0,
     });
@@ -156,18 +120,13 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     const backMaterial = new MeshStandardMaterial({
       color: whiteColor,
       map: picture2,
-      roughness: 0.5,
+      roughness: 0.9,
       metalness: 0,
       emissive: emissiveColor,
       emissiveIntensity: 0,
     });
 
-    const materials = [
-      ...pageMaterials, // Index 0-3 (Edges)
-      frontMaterial,    // Index 4 (Front)
-      backMaterial      // Index 5 (Back)
-    ];
-
+    const materials = [...pageMaterials, frontMaterial, backMaterial];
     const mesh = new SkinnedMesh(pageGeometry, materials);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -175,12 +134,13 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2, pictureRoughness, number, frontUrl, isDataUrl]);
+  }, [picture, picture2, pictureRoughness, number, frontUrl, backUrl]);
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
     
-    const emissiveIntensity = highlighted ? 0.22 : 0;
+    // Highlight logic
+    const emissiveIntensity = highlighted ? 0.1 : 0;
     skinnedMeshRef.current.material[4].emissiveIntensity =
       skinnedMeshRef.current.material[5].emissiveIntensity = MathUtils.lerp(
         skinnedMeshRef.current.material[4].emissiveIntensity,
@@ -192,51 +152,38 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
       turnedAt.current = +new Date();
       lastOpened.current = opened;
     }
+    
     let turningTime = Math.min(400, new Date() - turnedAt.current) / 400;
     turningTime = Math.sin(turningTime * Math.PI);
+    
     let targetRotation = opened ? -Math.PI / 2 : Math.PI / 2;
     if (!bookClosed) {
       targetRotation += degToRad(number * 0.8);
     }
+
     const bones = skinnedMeshRef.current.skeleton.bones;
     for (let i = 0; i < bones.length; i++) {
       const target = i === 0 ? group.current : bones[i];
       const insideCurveIntensity = i < 8 ? Math.sin(i * 0.2 + 0.25) : 0;
       const outsideCurveIntensity = i >= 8 ? Math.cos(i * 0.3 + 0.09) : 0;
-      const turningIntensity =
-        Math.sin(i * Math.PI * (1 / bones.length)) * turningTime;
+      const turningIntensity = Math.sin(i * Math.PI * (1 / bones.length)) * turningTime;
+      
       let rotationAngle =
         insideCurveStrength * insideCurveIntensity * targetRotation -
         outsideCurveStrength * outsideCurveIntensity * targetRotation +
         turningCurveStrength * turningIntensity * targetRotation;
+        
       let foldRotationAngle = degToRad(Math.sign(targetRotation) * 2);
+      
       if (bookClosed) {
-        if (i === 0) {
-          rotationAngle = targetRotation;
-          foldRotationAngle = 0;
-        } else {
-          rotationAngle = 0;
-          foldRotationAngle = 0;
-        }
+        if (i === 0) { rotationAngle = targetRotation; foldRotationAngle = 0; }
+        else { rotationAngle = 0; foldRotationAngle = 0; }
       }
-      easing.dampAngle(
-        target.rotation,
-        "y",
-        rotationAngle,
-        easingFactor,
-        delta
-      );
-      const foldIntensity =
-        i > 8
-          ? Math.sin(i * Math.PI * (1 / bones.length) - 0.5) * turningTime
-          : 0;
-      easing.dampAngle(
-        target.rotation,
-        "x",
-        foldRotationAngle * foldIntensity,
-        easingFactorFold,
-        delta
-      );
+      
+      easing.dampAngle(target.rotation, "y", rotationAngle, easingFactor, delta);
+      
+      const foldIntensity = i > 8 ? Math.sin(i * Math.PI * (1 / bones.length) - 0.5) * turningTime : 0;
+      easing.dampAngle(target.rotation, "x", foldRotationAngle * foldIntensity, easingFactorFold, delta);
     }
   });
 
@@ -248,16 +195,12 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     <group
       {...props}
       ref={group}
-      onPointerEnter={(e) => {
-        e.stopPropagation();
-        setHighlighted(true);
-      }}
-      onPointerLeave={(e) => {
-        e.stopPropagation();
-        setHighlighted(false);
-      }}
+      onPointerEnter={(e) => { e.stopPropagation(); setHighlighted(true); }}
+      onPointerLeave={(e) => { e.stopPropagation(); setHighlighted(false); }}
       onClick={(e) => {
         e.stopPropagation();
+        // FIX: Precise click logic
+        // If opened (Left side), go back 1. If closed (Right side), go forward 1.
         setPage(opened ? number : number + 1);
         setHighlighted(false);
       }}
@@ -280,28 +223,19 @@ export const Book = ({ ...props }) => {
     let timeout;
     const goToPage = () => {
       setDelayedPage((delayedPage) => {
-        if (page === delayedPage) {
-          return delayedPage;
-        } else {
-          timeout = setTimeout(
-            () => {
-              goToPage();
-            },
-            Math.abs(page - delayedPage) > 2 ? 50 : 150
-          );
-          if (page > delayedPage) {
-            return delayedPage + 1;
-          }
-          if (page < delayedPage) {
-            return delayedPage - 1;
-          }
-        }
+        if (page === delayedPage) return delayedPage;
+        
+        timeout = setTimeout(
+          () => goToPage(),
+          Math.abs(page - delayedPage) > 2 ? 50 : 150
+        );
+        
+        if (page > delayedPage) return delayedPage + 1;
+        if (page < delayedPage) return delayedPage - 1;
       });
     };
     goToPage();
-    return () => {
-      clearTimeout(timeout);
-    };
+    return () => clearTimeout(timeout);
   }, [page]);
 
   return (
