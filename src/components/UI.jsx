@@ -1,8 +1,8 @@
 import { useAtom } from "jotai";
 import { useEffect, useState, useRef } from "react";
-// CORRECT IMPORTS based on file tree
-import { bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom } from "../../store/atoms";
-import { EditorCanvas } from "../editor/EditorCanvas";
+// FIX: Path adjusted for src/components/UI.jsx
+import { bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom } from "../store/atoms";
+import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
 import { ResetBookModal } from "./ResetBookModal";
 
@@ -45,8 +45,6 @@ export const UI = () => {
   const handleEditCurrentPage = () => {
     if (page >= 0 && page < pages.length) {
       const currentPageData = pages[page];
-      // By default edit the front (right side)
-      // You could toggle this logic to edit back (left side) too
       setEditingPage({
         pageId: currentPageData.id,
         side: 'front', 
