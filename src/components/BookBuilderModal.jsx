@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
-import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
+// CORRECT IMPORT: Up 2 levels to get out of 'pages' and 'components'
+import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../../store/atoms';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -9,7 +10,7 @@ const ACTUAL_W = 1325;
 
 export const BookBuilderModal = ({ isOpen, onClose }) => {
   const [, setBookPages] = useAtom(setBookPagesAtom);
-  const [builderData, setBuilderData] = useAtom(builderDataAtom); // Persistent State
+  const [builderData, setBuilderData] = useAtom(builderDataAtom);
   
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -17,7 +18,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  // Helper to update persistent state
   const updateData = (field, value) => {
     setBuilderData(prev => ({ ...prev, [field]: value }));
   };
@@ -122,7 +122,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         if (img) contentImages.push(img);
       }
 
-      setStatus('Generating content layouts...');
+      setStatus('Generating layouts...');
       const contentLayouts = [];
       for (let i = 0; i < contentImages.length; i += builderData.itemsPerPage) {
         const batch = contentImages.slice(i, i + builderData.itemsPerPage);
@@ -143,13 +143,11 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
 
       const newLeaves = [];
 
-      // 1. Leaf 0: Cover (Right) + Page 1 (Left)
       newLeaves.push({
         front: coverData,         
         back: contentLayouts[0] || null 
       });
 
-      // 2. Content Pages
       let layoutIndex = 1;
       while (layoutIndex < contentLayouts.length) {
         const rightPageData = contentLayouts[layoutIndex]; 
@@ -163,7 +161,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         layoutIndex += 2;
       }
 
-      // 3. Back Cover Leaf
       newLeaves.push({
           front: { texture: createBlankTexture(), fabricJSON: null }, 
           back: backCoverData 
@@ -185,7 +182,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       }));
 
       setBookPages(finalPages);
-      
       setStatus('✅ Done!');
       setTimeout(() => { onClose(); setIsProcessing(false); }, 1000);
 
