@@ -1,29 +1,30 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
+// FIX: Correct path for file in src/components/
 import { Book } from "./Book"; 
 
 export const Experience = () => {
   return (
     <>
       <Float
-        rotation-x={0} // upright, no forward lean by default
+        rotation-x={0} 
         rotation-y={0} 
         rotation-z={0}
-        floatIntensity={0.4} // gentle bobbing up/down
+        floatIntensity={0.4} 
         speed={2}
-        rotationIntensity={0.2} // very slight rotation
-        floatingRange={[-0.1, 0.1]} // keep it centered
+        rotationIntensity={0.2} 
+        floatingRange={[-0.1, 0.1]} 
       >
         <Book />
       </Float>
       <OrbitControls 
-        maxPolarAngle={Math.PI / 2} // Don't go below floor
-        minPolarAngle={0} // Allow looking from top
+        maxPolarAngle={Math.PI / 2} 
+        minPolarAngle={0} 
         minDistance={3}
         maxDistance={15}
       />
       <Environment preset="studio"></Environment>
       <directionalLight
-        position={[0, 5, 2]} // Centered light to avoid uneven side lighting
+        position={[0, 5, 2]} 
         intensity={2.0}
         castShadow
         shadow-mapSize-width={2048}
