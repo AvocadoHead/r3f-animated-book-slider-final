@@ -1,64 +1,97 @@
 import { useAtom } from "jotai";
 import { useEffect, useState, useRef } from "react";
-// FIX: Path adjusted for src/components/UI.jsx
 import { bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
 import { ResetBookModal } from "./ResetBookModal";
 
+// ... translations object ... (keep it)
 const translations = {
-  en: {
-    editPage: 'Edit Page',
-    addPage: 'Add Page',
-    cover: 'Cover',
-    page: 'Page',
-    backCover: 'Back Cover',
-    bookBuilder: 'Book Builder',
-    newBook: 'New Book',
-  },
-  he: {
-    editPage: 'ערוך עמוד',
-    addPage: 'הוסף עמוד',
-    cover: 'כריכה',
-    page: 'עמוד',
-    backCover: 'כריכה אחורית',
-    bookBuilder: 'בנה ספר',
-    newBook: 'ספר חדש',
-  }
+  en: { editPage: 'Edit Page', addPage: 'Add Page', cover: 'Cover', page: 'Page', backCover: 'Back Cover', bookBuilder: 'Book Builder', newBook: 'New Book' },
+  he: { editPage: 'ערוך עמוד', addPage: 'הוסף עמוד', cover: 'כריכה', page: 'עמוד', backCover: 'כריכה אחורית', bookBuilder: 'בנה ספר', newBook: 'ספר חדש' }
 };
 
 export const UI = () => {
   const [page, setPage] = useAtom(currentPageAtom);
   const [pages] = useAtom(bookPagesAtom);
-  
   const [editorOpen, setEditorOpen] = useAtom(editModeAtom);
   const [editingPage, setEditingPage] = useState(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-
   const [, updatePage] = useAtom(updatePageAtom);
   const [language, setLanguage] = useAtom(languageAtom);
   const videoRef = useRef(null);
-  
   const t = translations[language];
 
+  // Helper to package page data for editor
+  const loadEditorFor = (pageIndex, side) => {
+    if (pageIndex < 0 || pageIndex >= pages.length) return;
+    const pageData = pages[pageIndex];
+    setEditingPage({
+        pageId: pageData.id,
+        side: side, // 'front' or 'back'
+        pageNumber: pageIndex,
+        data: pageData[side]
+    });
+    setEditorOpen(true);
+  };
+
   const handleEditCurrentPage = () => {
-    if (page >= 0 && page < pages.length) {
-      const currentPageData = pages[page];
-      setEditingPage({
-        pageId: currentPageData.id,
-        side: 'front', 
-        pageNumber: page,
-        data: currentPageData.front
-      });
-      setEditorOpen(true);
+    // Logic: If on Cover (0), edit Front Cover.
+    // If on Page 1 (Leaf 0 Back), edit Back.
+    // If on Page 2 (Leaf 1 Front), edit Front.
+    
+    // Simplification: Edit the visible Right side by default, or the Cover if at 0.
+    if (page === 0) loadEditorFor(0, 'front');
+    else if (page === pages.length) loadEditorFor(pages.length - 1, 'back');
+    else {
+        // If inside the book, let's edit the RIGHT side (current leaf Front)
+        // Adjust as needed
+        loadEditorFor(page, 'front');
     }
+  };
+
+  // Logic to switch sides inside the editor
+  const handleEditorNavigation = (direction) => {
+      if (!editingPage) return;
+      const currentIdx = editingPage.pageNumber;
+      const currentSide = editingPage.side; // 'front' or 'back'
+      
+      // Calculate next step
+      // Order: Leaf 0 Front -> Leaf 0 Back -> Leaf 1 Front -> Leaf 1 Back...
+      
+      let nextIdx = currentIdx;
+      let nextSide = currentSide;
+
+      if (direction === 1) { // Next
+          if (currentSide === 'front') {
+              nextSide = 'back'; // Go to back of same leaf
+          } else {
+              nextSide = 'front';
+              nextIdx = currentIdx + 1; // Go to front of next leaf
+          }
+      } else { // Prev
+          if (currentSide === 'back') {
+              nextSide = 'front';
+          } else {
+              nextSide = 'back';
+              nextIdx = currentIdx - 1;
+          }
+      }
+
+      // Bounds Check
+      if (nextIdx >= 0 && nextIdx < pages.length) {
+          loadEditorFor(nextIdx, nextSide);
+      }
   };
 
   const getEditorLabel = () => {
     if (!editingPage) return '';
-    if (editingPage.pageNumber === 0) return 'Front Cover';
-    return `Leaf ${editingPage.pageNumber} - Front Side`;
+    const isCover = editingPage.pageNumber === 0 && editingPage.side === 'front';
+    const isBackCover = editingPage.pageNumber === pages.length - 1 && editingPage.side === 'back';
+    if (isCover) return 'Front Cover';
+    if (isBackCover) return 'Back Cover';
+    return `Leaf ${editingPage.pageNumber} (${editingPage.side === 'front' ? 'Right' : 'Left'})`;
   };
 
   const handleSaveEdit = (savedData) => {
@@ -69,8 +102,7 @@ export const UI = () => {
         texture: savedData.texture,
         fabricJSON: savedData.fabricJSON,
       });
-      setEditorOpen(false);
-      setEditingPage(null);
+      // Don't close here, handled by Editor internal logic or explicit close
     }
   };
 
@@ -79,22 +111,13 @@ export const UI = () => {
     audio.play().catch(() => {});
   }, [page]);
   
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.play().catch(() => {});
-  }, []);
+  useEffect(() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }, []);
 
   return (
     <>
       <div className="fixed top-10 left-10 pointer-events-auto z-10 hidden md:block">
         <div className="relative w-32 h-32 rounded-full overflow-hidden shadow-2xl border-4 border-white/20">
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            loop
-            muted
-            playsInline
-            autoPlay
-          >
+          <video ref={videoRef} className="w-full h-full object-cover" loop muted playsInline autoPlay>
             <source src="/videos/Optopia Eye.mp4" type="video/mp4" />
           </video>
         </div>
@@ -108,7 +131,6 @@ export const UI = () => {
         <button className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white py-2 px-4 rounded-lg shadow-lg border border-white/10" onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}>
           {language === 'en' ? '🇮🇱 עברית' : '🇺🇸 English'}
         </button>
-
         <div className="flex gap-2">
           <button className="bg-white/90 hover:bg-red-50 text-red-600 font-medium py-2 px-3 rounded-lg shadow-lg" onClick={() => setResetOpen(true)} title={t.newBook}><span>🗑️</span></button>
           <button className="bg-white/90 hover:bg-purple-50 text-purple-700 font-medium py-2 px-4 rounded-lg shadow-lg" onClick={() => setBuilderOpen(true)}><span>🪄</span> <span className="hidden md:inline">{t.bookBuilder}</span></button>
@@ -122,6 +144,7 @@ export const UI = () => {
           onSave={handleSaveEdit}
           onClose={() => { setEditorOpen(false); setEditingPage(null); }}
           pageInfo={getEditorLabel()}
+          onNavigate={handleEditorNavigation} // PASS NAV HANDLER
         />
       )}
 
