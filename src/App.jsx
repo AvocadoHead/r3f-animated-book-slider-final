@@ -1,3 +1,4 @@
+// src/App.jsx (Corrected Version)
 import { Loader } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
