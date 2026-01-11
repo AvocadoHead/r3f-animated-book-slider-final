@@ -51,3 +51,8 @@ export const builderDataAtom = atomWithStorage('builder-state', {
 
 // Alias for compatibility
 export const bookDataAtom = builderDataAtom;
+
+// Derived atom for setting book pages
+export const setBookPagesAtom = atom(null, (get, set, pages) => {
+  set(bookPagesAtom, pages);
+});
