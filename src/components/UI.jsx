@@ -15,13 +15,11 @@ import { useAuth } from "../hooks/useAuth";
 const translations = {
   en: { 
     editPage: 'Edit Page', library: 'My Library', bookBuilder: 'Book Builder', 
-    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page',
-    cover: 'Cover', page: 'Page', backCover: 'Back Cover'
+    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page' 
   },
   he: { 
     editPage: 'ערוך עמוד', library: 'הספרייה שלי', bookBuilder: 'בנה ספר', 
-    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד',
-    cover: 'כריכה', page: 'עמוד', backCover: 'כריכה אחורית'
+    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד' 
   }
 };
 
@@ -43,7 +41,7 @@ export const UI = () => {
   const [menuOpen, setMenuOpen] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
   
-  const { user } = useAuth(); 
+  const { user } = useAuth(); // Hook handles auth state
   
   const videoRef = useRef(null);
   const t = translations[language];
@@ -51,6 +49,7 @@ export const UI = () => {
   // --- DB Logic ---
   useEffect(() => {
     if (user && !currentBookId) {
+        // Load latest book on login
         supabase.from('books').select('content, id').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1).single()
         .then(({ data }) => {
             if (data) { setBookPages(data.content); setCurrentBookId(data.id); }
@@ -90,8 +89,7 @@ export const UI = () => {
 
   const handleAddPage = () => {
       addPage();
-      // Optionally jump to the new page
-      // setPage(pages.length); 
+      setPage(pages.length);
       setMenuOpen(false);
   };
 
@@ -184,15 +182,12 @@ export const UI = () => {
                     
                     {/* User Profile / Login */}
                     <div className="p-4 border-b border-white/10 bg-white/5">
-                        {/* W-FULL added to container to stretch the button */}
-                        <div className="w-full">
-                            <AuthButton 
-                                language={language} 
-                                user={user} 
-                                onLogin={handleLogin} 
-                                onLogout={handleLogout} 
-                            />
-                        </div>
+                        <AuthButton 
+                            language={language} 
+                            user={user} 
+                            onLogin={handleLogin} 
+                            onLogout={handleLogout} 
+                        />
                     </div>
 
                     {/* Menu Actions */}
@@ -200,7 +195,7 @@ export const UI = () => {
                         {user ? (
                             <>
                                 <MenuButton icon="📚" label={t.library} onClick={() => { setLibraryOpen(true); setMenuOpen(false); }} />
-                                {/* Add Page Button - MOVED HERE INSIDE MENU */}
+                                {/* Add Page Button in Menu */}
                                 <MenuButton icon="➕" label={t.addPage} onClick={handleAddPage} /> 
                                 <MenuButton icon="🪄" label={t.bookBuilder} onClick={() => { setBuilderOpen(true); setMenuOpen(false); }} />
                                 <div className="h-px bg-white/10 mx-4 my-2" />
