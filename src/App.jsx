@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { Experience } from "./components/Experience";
 import { UI } from "./components/UI";
 import { PageManager } from "./components/pages/PageManager";
+import { AuthCallback } from "./components/AuthCallback";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           </Suspense>
         </group>
       </Canvas>
+      <AuthCallback />
       <UI />
       <PageManager />
       <Loader />

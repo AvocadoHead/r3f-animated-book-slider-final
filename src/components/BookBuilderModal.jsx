@@ -3,6 +3,8 @@ import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
 // FIX: Path adjusted for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
+import { normalizeImageUrl } from '../utils/imageHelpers';
+import { watercolorPages } from '../../data/watercolorSeries';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -22,16 +24,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     setBuilderData(prev => ({ ...prev, [field]: value }));
   };
 
-  const processUrl = (url) => {
-    if (!url) return null;
-    const cleanUrl = url.trim();
-    if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('drive.usercontent')) {
-      const idMatch = cleanUrl.match(/[-\w]{25,}/);
-      if (idMatch) return `https://lh3.googleusercontent.com/d/${idMatch[0]}`;
-    }
-    return cleanUrl;
-  };
-
   const loadImage = (url) => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -45,7 +37,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         retry.onerror = () => resolve(null);
         retry.src = proxyUrl;
       };
-      img.src = processUrl(url);
+      img.src = normalizeImageUrl(url) || url;
     });
   };
 
@@ -112,7 +104,10 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     setStatus('Initializing...');
     
     const fCanvas = new fabric.Canvas(canvasRef.current, { width: PAGE_W, height: PAGE_H });
-    const urlList = builderData.urls.match(/(https?:\/\/[^\s]+)/g) || [];
+    const urlList = builderData.urls
+      .split(/[\s,]+/)
+      .map((entry) => normalizeImageUrl(entry))
+      .filter(Boolean);
     
     try {
       setStatus('Loading images...');
@@ -194,6 +189,15 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleLoadWatercolor = () => {
+    const watercolorUrls = watercolorPages.flat().join('\n');
+    setBuilderData(prev => ({
+      ...prev,
+      urls: watercolorUrls,
+      itemsPerPage: 4,
+    }));
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl p-6 w-[700px] max-w-full max-h-[90vh] overflow-y-auto">
@@ -247,6 +251,12 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
                 {[1, 2, 4].map(n => (
                     <button key={n} onClick={() => updateData('itemsPerPage', n)} className={`text-xs px-2 py-1 rounded border ${builderData.itemsPerPage === n ? 'bg-purple-600 text-white' : 'bg-white text-gray-600'}`}>{n} per page</button>
                 ))}
+                <button
+                  onClick={handleLoadWatercolor}
+                  className="text-xs px-2 py-1 rounded border bg-white text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                  Load watercolor set
+                </button>
             </div>
           </div>
           <textarea

@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { useAtom } from 'jotai';
 import { clipboardAtom } from '../../store/atoms'; 
 import { FrameOverlay } from './FrameOverlay';
+import { normalizeImageUrl } from '../../utils/imageHelpers';
 
 const PAGE_DIMENSIONS = {
   width: 800,
@@ -23,16 +24,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   
   const [history, setHistory] = useState([]);
   const [historyStep, setHistoryStep] = useState(-1);
-
-  const processUrl = (url) => {
-    if (!url) return null;
-    const cleanUrl = url.trim();
-    if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('drive.usercontent')) {
-      const idMatch = cleanUrl.match(/[-\w]{25,}/);
-      if (idMatch) return `https://lh3.googleusercontent.com/d/${idMatch[0]}`;
-    }
-    return cleanUrl;
-  };
 
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
@@ -166,7 +157,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   const addImageFromUrl = useCallback(() => {
      let url = prompt("Image URL (Direct link or Google Drive):");
      if(url) {
-         url = processUrl(url);
+         url = normalizeImageUrl(url) || url;
          setIsLoading(true);
          fabric.Image.fromURL(url, (img)=>{
              setIsLoading(false);

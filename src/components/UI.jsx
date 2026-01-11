@@ -15,11 +15,13 @@ import { useAuth } from "../hooks/useAuth";
 const translations = {
   en: { 
     editPage: 'Edit Page', library: 'My Library', bookBuilder: 'Book Builder', 
-    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page' 
+    newBook: 'New Book', login: 'Sign In', logout: 'Sign Out', menu: 'Menu', guest: 'Guest', addPage: 'Add Page',
+    cover: 'Cover', page: 'Page', backCover: 'Back Cover'
   },
   he: { 
     editPage: 'ערוך עמוד', library: 'הספרייה שלי', bookBuilder: 'בנה ספר', 
-    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד' 
+    newBook: 'ספר חדש', login: 'התחבר', logout: 'התנתק', menu: 'תפריט', guest: 'אורח', addPage: 'הוסף עמוד',
+    cover: 'כריכה', page: 'עמוד', backCover: 'כריכה אחורית'
   }
 };
 
@@ -80,7 +82,10 @@ export const UI = () => {
 
   // --- Handlers ---
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` }
+    });
   };
   const handleLogout = async () => {
     await supabase.auth.signOut();
