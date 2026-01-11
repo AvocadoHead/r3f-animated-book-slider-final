@@ -1,5 +1,6 @@
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
+import { watercolorPages } from '../data/watercolorSeries';
 
 // --- Helpers ---
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -14,6 +15,25 @@ export const createBlankTexture = () => {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/png');
 };
+
+// Convert watercolor URLs to page format
+const watercolorPagesFormatted = watercolorPages.flatMap((urlGroup, groupIndex) => {
+  const pageNumber = groupIndex * 2;
+  return [
+    {
+      id: generatePageId(),
+      pageNumber: pageNumber,
+      front: { texture: urlGroup[0], type: pageNumber === 0 ? 'cover' : 'page' },
+      back: { texture: urlGroup[1], type: 'page' }
+    },
+    {
+      id: generatePageId(),
+      pageNumber: pageNumber + 1,
+      front: { texture: urlGroup[2], type: 'page' },
+      back: { texture: urlGroup[3], type: groupIndex === watercolorPages.length - 1 ? 'cover' : 'page' }
+    }
+  ];
+});
 
 // --- Initial Data ---
 const initialPages = [
@@ -32,8 +52,7 @@ const initialPages = [
 ];
 
 // --- Atoms ---
-export const bookPagesAtom = atom(initialPages);
-export const currentPageAtom = atom(0);
+export const bookPagesAtom = atom(watercolorPagesFormatted);export const currentPageAtom = atom(0);
 export const editModeAtom = atom(false);
 export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
