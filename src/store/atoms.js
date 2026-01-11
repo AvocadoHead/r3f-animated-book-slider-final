@@ -1,7 +1,6 @@
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
-import { watercolorPages } from '../data/watercolorSeries';
-
+import { watercolorPages } from '../data/watercolorSeries.js';
 // --- Helpers ---
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
