@@ -48,3 +48,6 @@ export const builderDataAtom = atomWithStorage('builder-state', {
   urls: '',
   itemsPerPage: 1,
 });
+
+// Alias for compatibility
+export const bookDataAtom = builderDataAtom;
