@@ -26,36 +26,6 @@ export function useAuth() {
       }
     });
 
-    // 3. FORCE FIX: Manually parse URL if Supabase missed it
-    const handleHash = async () => {
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        try {
-          // Extract tokens manually
-          const params = new URLSearchParams(hash.substring(1)); // remove #
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken) {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
-
-            if (data?.session?.user) {
-              setUser(data.session.user);
-              // Clean URL
-              window.history.replaceState(null, '', window.location.pathname);
-            }
-          }
-        } catch (e) {
-          console.error("Manual token parse failed", e);
-        }
-      }
-    };
-
-    handleHash();
-
     return () => {
       mounted = false;
       subscription.unsubscribe();

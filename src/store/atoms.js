@@ -43,7 +43,8 @@ export const currentBookIdAtom = atom(null);
 export const builderDataAtom = atomWithStorage('builder-state', {
   title: '',
   coverUrl: '',
+  coverFontSize: '60',
+  coverColor: '#000000',
   urls: '',
   itemsPerPage: 1,
 });
-
