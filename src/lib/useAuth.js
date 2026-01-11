@@ -6,13 +6,13 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check active session immediately
+    // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // 2. Setup Listener for changes (Login, Logout, Auto-refresh)
+    // 2. Listen for changes (Sign in, Sign out, Auto-refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
