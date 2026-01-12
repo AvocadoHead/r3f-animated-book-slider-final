@@ -1,12 +1,3 @@
-// Function to chunk array into groups of 4
-function chunkArray(array, size) {
-    const chunked = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunked.push(array.slice(i, i + size));
-    }
-    return chunked;
-}
-
 const rawUrls = [
   "https://drive.google.com/uc?export=view&id=1DI1jomqISKMTkY7s6rgc9pNgNcIrbyxx",
   "https://drive.google.com/uc?export=view&id=1xQDe3vGxDCE6bLf6WhDReaKDvgbKLKv8",
