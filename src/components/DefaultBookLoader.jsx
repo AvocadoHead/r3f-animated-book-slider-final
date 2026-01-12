@@ -16,19 +16,11 @@ export const DefaultBookLoader = () => {
     if (!pages || pages.length > 2) return;
 
     hasLoaded.current = true;
-    const scheduleBuild = () => {
-      buildDefaultBookPages(watercolorPages).then((defaultPages) => {
-        if (defaultPages?.length) {
-          setBookPages(defaultPages);
-        }
-      });
-    };
-
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      window.requestIdleCallback(scheduleBuild, { timeout: 3000 });
-    } else {
-      setTimeout(scheduleBuild, 0);
-    }
+    buildDefaultBookPages(watercolorPages).then((defaultPages) => {
+      if (defaultPages?.length) {
+        setBookPages(defaultPages);
+      }
+    });
   }, [pages, currentBookId, setBookPages]);
 
   return null;

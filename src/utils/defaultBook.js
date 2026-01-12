@@ -1,5 +1,5 @@
 import { createBlankTexture, generatePageId } from '../store/atoms';
-import { getPreviewImageUrl, getProxiedImageUrl, normalizeImageUrl } from './imageHelpers';
+import { normalizeImageUrl } from './imageHelpers';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -11,40 +11,15 @@ const loadImage = (url) =>
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => {
-      const resolvedUrl = normalizeImageUrl(url) || url;
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(resolvedUrl)}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
       const retry = new Image();
       retry.crossOrigin = 'anonymous';
       retry.onload = () => resolve(retry);
       retry.onerror = () => resolve(null);
       retry.src = proxyUrl;
     };
-    const resolvedUrl = normalizeImageUrl(url) || url;
-    const previewUrl = getPreviewImageUrl(resolvedUrl, 800);
-    const finalUrl = previewUrl || getProxiedImageUrl(resolvedUrl) || resolvedUrl;
-    img.src = finalUrl;
+    img.src = normalizeImageUrl(url) || url;
   });
-
-const selectDefaultUrls = (urls, count = 42) => {
-  if (!urls?.length) return [];
-  const pool = [...urls];
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, Math.min(count, pool.length));
-};
-
-const loadImagesInBatches = async (urls, batchSize = 6) => {
-  const images = [];
-  for (let i = 0; i < urls.length; i += batchSize) {
-    const batch = urls.slice(i, i + batchSize);
-    // eslint-disable-next-line no-await-in-loop
-    const loaded = await Promise.all(batch.map(loadImage));
-    images.push(...loaded);
-  }
-  return images;
-};
 
 const renderLayout = (images, slots) => {
   const canvas = document.createElement('canvas');
@@ -111,8 +86,7 @@ export const buildDefaultBookPages = async (urls) => {
   if (typeof document === 'undefined') return null;
   if (!urls?.length) return null;
 
-  const sampledUrls = selectDefaultUrls(urls, 42);
-  const normalizedUrls = sampledUrls.map(normalizeImageUrl).filter(Boolean);
+  const normalizedUrls = urls.map(normalizeImageUrl).filter(Boolean);
   if (normalizedUrls.length < 2) return null;
 
   const coverUrl = normalizedUrls[0];
@@ -127,7 +101,7 @@ export const buildDefaultBookPages = async (urls) => {
     ? renderLayout([backImg], createGridSlots(1))
     : createBlankTexture();
 
-  const contentImages = await loadImagesInBatches(contentUrls, 6);
+  const contentImages = await Promise.all(contentUrls.map(loadImage));
   const contentChunks = chunkArray(contentImages.filter(Boolean), 4);
   const contentLayouts = contentChunks.map((chunk) => ({
     texture: renderLayout(chunk, createGridSlots(chunk.length)),

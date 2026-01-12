@@ -33,10 +33,3 @@ export const getProxiedImageUrl = (input) => {
   const url = input.replace(/^https?:\/\//i, '');
   return `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
 };
-
-export const getPreviewImageUrl = (input, size = 1200) => {
-  if (!input) return null;
-  const driveId = extractGoogleDriveId(input);
-  if (!driveId) return null;
-  return `https://drive.google.com/thumbnail?id=${driveId}&sz=w${size}`;
-};
