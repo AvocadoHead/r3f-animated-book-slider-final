@@ -26,3 +26,10 @@ export const normalizeImageUrl = (input) => {
 
   return null;
 };
+
+export const getProxiedImageUrl = (input) => {
+  if (!input) return null;
+  if (!/^https?:\/\//i.test(input)) return input;
+  const url = input.replace(/^https?:\/\//i, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
+};

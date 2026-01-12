@@ -30,14 +30,16 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => {
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        const resolvedUrl = normalizeImageUrl(url) || url;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(resolvedUrl)}`;
         const retry = new Image();
         retry.crossOrigin = 'anonymous';
         retry.onload = () => resolve(retry);
         retry.onerror = () => resolve(null);
         retry.src = proxyUrl;
       };
-      img.src = normalizeImageUrl(url) || url;
+      const resolvedUrl = normalizeImageUrl(url) || url;
+      img.src = getProxiedImageUrl(resolvedUrl) || resolvedUrl;
     });
   };
 
