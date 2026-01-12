@@ -4,7 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
 import { Experience } from "./components/Experience";
 import { UI } from "./components/UI";
-import { PageManager } from "./components/pages/PageManager";
+import { DefaultBookLoader } from "./components/DefaultBookLoader";
 import { AuthCallback } from "./components/AuthCallback";
 
 function App() {
@@ -23,9 +23,9 @@ function App() {
           </Suspense>
         </group>
       </Canvas>
+      <DefaultBookLoader />
       <AuthCallback />
       <UI />
-      <PageManager />
       <Loader />
     </>
   );

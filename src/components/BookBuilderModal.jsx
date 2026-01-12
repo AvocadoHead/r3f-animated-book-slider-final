@@ -4,7 +4,7 @@ import * as fabric from 'fabric';
 // FIX: Path adjusted for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
 import { normalizeImageUrl } from '../utils/imageHelpers';
-import { watercolorPages } from '../../data/watercolorSeries';
+import { watercolorPages } from '../data/watercolorSeries';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
