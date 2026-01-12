@@ -294,5 +294,4 @@ const rawUrls = [
   "https://drive.google.com/uc?export=view&id=1dIqrswjsCHoktMCdeGJ0GMgEd6K7EzVf"
 ];
 
-// Returns an array where each item contains an array of 4 URLs
-export const watercolorPages = chunkArray(rawUrls, 4);
+export const watercolorPages = rawUrls;
