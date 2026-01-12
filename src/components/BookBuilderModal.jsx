@@ -3,7 +3,7 @@ import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
 // FIX: Path adjusted for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
-import { getProxiedImageUrl, normalizeImageUrl } from '../utils/imageHelpers';
+import { normalizeImageUrl } from '../utils/imageHelpers';
 import { watercolorPages } from '../data/watercolorSeries';
 
 const PAGE_W = 800;

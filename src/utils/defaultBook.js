@@ -1,5 +1,5 @@
 import { createBlankTexture, generatePageId } from '../store/atoms';
-import { getPreviewImageUrl, getProxiedImageUrl, normalizeImageUrl } from './imageHelpers';
+import { normalizeImageUrl } from './imageHelpers';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -11,18 +11,14 @@ const loadImage = (url) =>
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => {
-      const resolvedUrl = normalizeImageUrl(url) || url;
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(resolvedUrl)}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
       const retry = new Image();
       retry.crossOrigin = 'anonymous';
       retry.onload = () => resolve(retry);
       retry.onerror = () => resolve(null);
       retry.src = proxyUrl;
     };
-    const resolvedUrl = normalizeImageUrl(url) || url;
-    const previewUrl = getPreviewImageUrl(resolvedUrl);
-    const finalUrl = previewUrl || getProxiedImageUrl(resolvedUrl) || resolvedUrl;
-    img.src = finalUrl;
+    img.src = normalizeImageUrl(url) || url;
   });
 
 const renderLayout = (images, slots) => {
