@@ -49,16 +49,18 @@ export const builderDataAtom = atomWithStorage('builder-state', {
   itemsPerPage: 1,
 });
 
-
 // Derived atom for setting book pages
 export const setBookPagesAtom = atom(null, (get, set, pages) => {
+  set(bookPagesAtom, pages);
+});
+
 export const bookDataAtom = atom((get) => {
   const pages = get(bookPagesAtom);
   return pages.map(page => ({
     front: page.front.texture,
     back: page.back.texture,
   }));
-});});
+});
 
 // Derived atom for resetting book to initial pages
 export const resetBookAtom = atom(null, (get, set) => {
