@@ -69,3 +69,9 @@ export const updatePageAtom = atom(null, (get, set, updatedPage) => {
     const updatedPages = pages.map(page => page.id === updatedPage.id ? updatedPage : page);
     set(bookPagesAtom, updatedPages);
   });
+
+// Derived atom for adding a new page
+export const addPageAtom = atom(null, (get, set, newPage) => {
+    const pages = get(bookPagesAtom);
+    set(bookPagesAtom, [...pages, newPage]);
+  });
