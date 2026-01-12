@@ -75,3 +75,9 @@ export const addPageAtom = atom(null, (get, set, newPage) => {
     const pages = get(bookPagesAtom);
     set(bookPagesAtom, [...pages, newPage]);
   });
+
+// Derived atom for removing a page by id
+export const removePageAtom = atom(null, (get, set, pageId) => {
+    const pages = get(bookPagesAtom);
+    set(bookPagesAtom, pages.filter(page => page.id !== pageId));
+  });
