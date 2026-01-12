@@ -190,7 +190,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
   };
 
   const handleLoadWatercolor = () => {
-    const watercolorUrls = watercolorPages.flat().join('\n');
+    const watercolorUrls = watercolorPages.join('\n');
     setBuilderData(prev => ({
       ...prev,
       urls: watercolorUrls,
