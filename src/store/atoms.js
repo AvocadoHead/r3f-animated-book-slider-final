@@ -56,3 +56,9 @@ export const bookDataAtom = builderDataAtom;
 export const setBookPagesAtom = atom(null, (get, set, pages) => {
   set(bookPagesAtom, pages);
 });
+
+// Derived atom for resetting book to initial pages
+export const resetBookAtom = atom(null, (get, set) => {
+    set(bookPagesAtom, initialPages);
+    set(currentPageAtom, 0);
+  });
