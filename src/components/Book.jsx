@@ -2,7 +2,7 @@ import { useCursor, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useAtom } from "jotai";
 import { easing } from "maath";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bone,
   BoxGeometry,
@@ -20,6 +20,7 @@ import { degToRad } from "three/src/math/MathUtils.js";
 import { currentPageAtom, bookDataAtom } from "../store/atoms";
 
 const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
+const RENDER_DISTANCE = 2;
 
 const getTextureExtension = (name) => {
   if (!name) return 'png';
@@ -66,27 +67,28 @@ const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
 ];
 
-const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...props }) => {
-  const getFinalUrl = (path) => {
-    if (!path) return WHITE_PIXEL;
-    if (isDataUrl(path)) return path;
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/textures/')) return path;
-    return `/textures/${path}.${getTextureExtension(path)}`;
-  };
-  
-  const frontUrl = getFinalUrl(front);
-  const backUrl = getFinalUrl(back);
-  
-  const texturesToLoad = [
-    frontUrl,
-    backUrl,
-    ...(number === 0 || number === totalPages - 1 ? [`/textures/book-cover-roughness.jpg`] : []),
-  ];
-  
-  const [picture, picture2, pictureRoughness] = useTexture(texturesToLoad);
-  picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
-  
+const createPlaceholderCanvas = (size = 32) => {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f5f5f5';
+  ctx.fillRect(0, 0, size, size);
+  return canvas;
+};
+
+const PageMesh = ({
+  number,
+  page,
+  opened,
+  bookClosed,
+  frontTexture,
+  backTexture,
+  roughnessTexture,
+  useRoughnessMap,
+  ...props
+}) => {
   const group = useRef();
   const turnedAt = useRef(0);
   const lastOpened = useRef(opened);
@@ -105,17 +107,17 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
 
     const frontMaterial = new MeshStandardMaterial({
       color: whiteColor,
-      map: picture,
-      ...(number === 0 && !frontUrl.startsWith('data:')
-        ? { roughnessMap: pictureRoughness }
-        : { roughness: 0.8, metalness: 0.1 }), 
+      map: frontTexture,
+      ...(useRoughnessMap && roughnessTexture
+        ? { roughnessMap: roughnessTexture }
+        : { roughness: 0.8, metalness: 0.1 }),
       emissive: emissiveColor,
       emissiveIntensity: 0,
     });
 
     const backMaterial = new MeshStandardMaterial({
       color: whiteColor,
-      map: picture2,
+      map: backTexture,
       roughness: 0.8,
       metalness: 0.1,
       emissive: emissiveColor,
@@ -130,7 +132,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2, pictureRoughness, number, frontUrl, backUrl]);
+  }, [frontTexture, backTexture, roughnessTexture, number, useRoughnessMap]);
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
@@ -207,6 +209,73 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
   );
 };
 
+const getFinalUrl = (path) => {
+  if (!path) return WHITE_PIXEL;
+  if (isDataUrl(path)) return path;
+  if (path.startsWith('http')) return path;
+  if (path.startsWith('/textures/')) return path;
+  return `/textures/${path}.${getTextureExtension(path)}`;
+};
+
+const PageWithTextures = ({ number, front, back, totalPages, ...props }) => {
+  const frontUrl = getFinalUrl(front);
+  const backUrl = getFinalUrl(back);
+  const texturesToLoad = useMemo(() => [
+    frontUrl,
+    backUrl,
+    ...(number === 0 || number === totalPages - 1 ? [`/textures/book-cover-roughness.jpg`] : []),
+  ], [frontUrl, backUrl, number, totalPages]);
+
+  const [picture, picture2, pictureRoughness] = useTexture(texturesToLoad);
+
+  useEffect(() => {
+    if (picture) picture.colorSpace = SRGBColorSpace;
+    if (picture2) picture2.colorSpace = SRGBColorSpace;
+  }, [picture, picture2]);
+
+  useEffect(() => {
+    return () => {
+      [picture, picture2, pictureRoughness].forEach((texture) => texture?.dispose());
+      useTexture.clear(texturesToLoad);
+    };
+  }, [picture, picture2, pictureRoughness, texturesToLoad]);
+
+  return (
+    <PageMesh
+      {...props}
+      number={number}
+      frontTexture={picture}
+      backTexture={picture2}
+      roughnessTexture={pictureRoughness}
+      useRoughnessMap={number === 0 && !frontUrl.startsWith('data:')}
+    />
+  );
+};
+
+const PagePlaceholder = ({ number, ...props }) => {
+  const placeholderCanvas = useMemo(() => createPlaceholderCanvas(), []);
+  const placeholderTexture = useMemo(() => {
+    if (!placeholderCanvas) return null;
+    const texture = new Texture(placeholderCanvas);
+    texture.needsUpdate = true;
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+  }, [placeholderCanvas]);
+
+  useEffect(() => () => placeholderTexture?.dispose(), [placeholderTexture]);
+
+  return (
+    <PageMesh
+      {...props}
+      number={number}
+      frontTexture={placeholderTexture}
+      backTexture={placeholderTexture}
+      roughnessTexture={null}
+      useRoughnessMap={false}
+    />
+  );
+};
+
 export const Book = ({ ...props }) => {
   const [page] = useAtom(currentPageAtom);
   const [bookData] = useAtom(bookDataAtom);
@@ -226,19 +295,36 @@ export const Book = ({ ...props }) => {
     return () => clearTimeout(timeout);
   }, [page]);
 
+  const startIndex = Math.max(0, delayedPage - RENDER_DISTANCE);
+  const endIndex = Math.min(bookData.length - 1, delayedPage + RENDER_DISTANCE);
+
   return (
     <group {...props} rotation-y={-Math.PI / 2}>
-      {[...bookData].map((pageData, index) => (
-        <Page
-          key={index}
-          page={delayedPage}
-          number={index}
-          opened={delayedPage > index}
-          bookClosed={delayedPage === 0 || delayedPage === bookData.length}
-          totalPages={bookData.length}
-          {...pageData}
-        />
-      ))}
+      {[...bookData].map((pageData, index) => {
+        if (index < startIndex || index > endIndex) return null;
+        return (
+          <Suspense
+            key={index}
+            fallback={
+              <PagePlaceholder
+                page={delayedPage}
+                number={index}
+                opened={delayedPage > index}
+                bookClosed={delayedPage === 0 || delayedPage === bookData.length}
+              />
+            }
+          >
+            <PageWithTextures
+              page={delayedPage}
+              number={index}
+              opened={delayedPage > index}
+              bookClosed={delayedPage === 0 || delayedPage === bookData.length}
+              totalPages={bookData.length}
+              {...pageData}
+            />
+          </Suspense>
+        );
+      })}
     </group>
   );
 };
