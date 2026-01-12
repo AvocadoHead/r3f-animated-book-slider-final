@@ -7,7 +7,7 @@ export const AuthButton = ({ language, user, onLogin, onLogout }) => {
 
   if (user) {
     return (
-      <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full pl-1 pr-4 py-1">
+      <div className="w-full flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full pl-1 pr-4 py-1">
         {/* Avatar */}
         {user.user_metadata?.avatar_url ? (
           <img src={user.user_metadata.avatar_url} alt="User" className="w-8 h-8 rounded-full border border-white/50" />
@@ -41,7 +41,7 @@ export const AuthButton = ({ language, user, onLogin, onLogout }) => {
   return (
     <button
       onClick={onLogin}
-      className="bg-white/90 hover:bg-white text-gray-900 px-4 py-2 rounded-full font-bold shadow-lg transition-all flex items-center gap-2 text-sm"
+      className="w-full bg-white/90 hover:bg-white text-gray-900 px-4 py-2 rounded-full font-bold shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
     >
       <img src="https://www.google.com/favicon.ico" alt="G" className="w-3.5 h-3.5" />
       {label}
