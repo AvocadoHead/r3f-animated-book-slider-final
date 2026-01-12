@@ -3,8 +3,8 @@ import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
 // FIX: Path adjusted for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
-import { normalizeImageUrl } from '../utils/imageHelpers';
-import { watercolorPages } from '../../data/watercolorSeries';
+import { getProxiedImageUrl, normalizeImageUrl } from '../utils/imageHelpers';
+import { watercolorPages } from '../data/watercolorSeries';
 
 const PAGE_W = 800;
 const PAGE_H = 1070;
@@ -30,14 +30,16 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => {
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        const resolvedUrl = normalizeImageUrl(url) || url;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(resolvedUrl)}`;
         const retry = new Image();
         retry.crossOrigin = 'anonymous';
         retry.onload = () => resolve(retry);
         retry.onerror = () => resolve(null);
         retry.src = proxyUrl;
       };
-      img.src = normalizeImageUrl(url) || url;
+      const resolvedUrl = normalizeImageUrl(url) || url;
+      img.src = getProxiedImageUrl(resolvedUrl) || resolvedUrl;
     });
   };
 
