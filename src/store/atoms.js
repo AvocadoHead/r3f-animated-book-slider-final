@@ -28,6 +28,13 @@ const initialPages = [
   }
 ];
 
+const createNewLeaf = (pageNumber) => ({
+  id: generatePageId(),
+  pageNumber,
+  front: { texture: createBlankTexture(), type: 'page' },
+  back: { texture: createBlankTexture(), type: 'page' }
+});
+
 // ---- Atoms ----
 export const bookPagesAtom = atom(initialPages);
 export const currentPageAtom = atom(0);
@@ -78,7 +85,22 @@ export const updatePageAtom = atom(null, (get, set, updatedPage) => {
 // Derived atom for adding a new page
 export const addPageAtom = atom(null, (get, set, newPage) => {
     const pages = get(bookPagesAtom);
-    set(bookPagesAtom, [...pages, newPage]);
+    const lastIndex = pages.length - 1;
+    const pageToAdd = newPage ?? createNewLeaf(pages.length);
+    const nextPages = [...pages];
+
+    if (lastIndex >= 0 && pages[lastIndex]?.back?.type === 'cover') {
+      nextPages.splice(lastIndex, 0, pageToAdd);
+    } else {
+      nextPages.push(pageToAdd);
+    }
+
+    nextPages.forEach((page, index) => {
+      page.pageNumber = index;
+    });
+
+    set(bookPagesAtom, nextPages);
+    return pageToAdd;
   });
 
 // Derived atom for removing a page by id
