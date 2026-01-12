@@ -17,7 +17,7 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { currentPageAtom, bookPagesAtom } from "../store/atoms";
+import { currentPageAtom, bookDataAtom } from "../store/atoms";
 
 const WHITE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
 
@@ -209,7 +209,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, totalPages, ...pr
 
 export const Book = ({ ...props }) => {
   const [page] = useAtom(currentPageAtom);
-  const [bookData] = useAtom(bookPagesAtom);
+  const [bookData] = useAtom(bookDataAtom);
   const [delayedPage, setDelayedPage] = useState(page);
 
   useEffect(() => {
