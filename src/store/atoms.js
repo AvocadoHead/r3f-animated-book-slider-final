@@ -62,3 +62,10 @@ export const resetBookAtom = atom(null, (get, set) => {
     set(bookPagesAtom, initialPages);
     set(currentPageAtom, 0);
   });
+
+// Derived atom for updating a single page
+export const updatePageAtom = atom(null, (get, set, updatedPage) => {
+    const pages = get(bookPagesAtom);
+    const updatedPages = pages.map(page => page.id === updatedPage.id ? updatedPage : page);
+    set(bookPagesAtom, updatedPages);
+  });
