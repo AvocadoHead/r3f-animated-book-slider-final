@@ -94,7 +94,11 @@ export const UI = () => {
 
   const handleAddPage = () => {
       addPage();
-      setPage(pages.length);
+      const lastIndex = pages.length - 1;
+      const nextIndex = lastIndex >= 0 && pages[lastIndex]?.back?.type === 'cover'
+        ? pages.length - 1
+        : pages.length;
+      setPage(nextIndex);
       setMenuOpen(false);
   };
 
