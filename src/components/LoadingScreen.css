@@ -1,0 +1,45 @@
+.loading-screen {
+      position: fixed;
+        top: 0;
+          left: 0;
+            width: 100vw;
+              height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  display: flex;
+                    align-items: center;
+                      justify-content: center;
+                        z-index: 9999;
+                          transition: opacity 0.5s ease-out;
+                          }
+
+                          .loading-content {
+                            text-align: center;
+                              color: white;
+                              }
+
+                              .loading-content h2 {
+                                font-size: 2rem;
+                                  margin-bottom: 1rem;
+                                    font-weight: 600;
+                                    }
+
+                                    .loading-content p {
+                                      font-size: 1.2rem;
+                                        margin-bottom: 2rem;
+                                          opacity: 0.9;
+                                          }
+
+                                          .progress-circle {
+                                            position: relative;
+                                              display: inline-block;
+                                              }
+
+                                              .progress-text {
+                                                position: absolute;
+                                                  top: 50%;
+                                                    left: 50%;
+                                                      transform: translate(-50%, -50%);
+                                                        font-size: 1.5rem;
+                                                          font-weight: bold;
+                                                            color: white;
+                                                            }
