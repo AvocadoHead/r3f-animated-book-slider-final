@@ -14,6 +14,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
   
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0); // 0-100
   const canvasRef = useRef(null);
 
   if (!isOpen) return null;
@@ -109,36 +110,48 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
 
   const handleBuild = async () => {
     setIsProcessing(true);
+    setProgress(0);
     setStatus('Initializing...');
-    
+
     const fCanvas = new fabric.Canvas(canvasRef.current, { width: PAGE_W, height: PAGE_H });
     const urlList = builderData.urls.match(/(https?:\/\/[^\s]+)/g) || [];
-    
+    const totalSteps = urlList.length + Math.ceil(urlList.length / builderData.itemsPerPage) + 3; // images + layouts + cover/back/finalize
+    let currentStep = 0;
+
+    const updateProgress = (stepStatus) => {
+      currentStep++;
+      setProgress(Math.min(Math.round((currentStep / totalSteps) * 100), 99));
+      setStatus(stepStatus);
+    };
+
     try {
-      setStatus('Loading images...');
+      updateProgress('Loading images...');
       const contentImages = [];
       for (let i = 0; i < urlList.length; i++) {
         const img = await loadImage(urlList[i]);
         if (img) contentImages.push(img);
+        updateProgress(`Loading image ${i + 1}/${urlList.length}...`);
       }
 
-      setStatus('Generating layouts...');
       const contentLayouts = [];
+      const totalLayouts = Math.ceil(contentImages.length / builderData.itemsPerPage);
       for (let i = 0; i < contentImages.length; i += builderData.itemsPerPage) {
         const batch = contentImages.slice(i, i + builderData.itemsPerPage);
         contentLayouts.push(await generateLayout(batch, fCanvas));
+        updateProgress(`Generating page ${contentLayouts.length}/${totalLayouts}...`);
       }
 
-      setStatus('Creating cover...');
+      updateProgress('Creating cover...');
       const coverImg = builderData.coverUrl ? await loadImage(builderData.coverUrl) : null;
-      
+
       const coverData = await generateLayout(
-          coverImg ? [coverImg] : [], 
-          fCanvas, 
+          coverImg ? [coverImg] : [],
+          fCanvas,
           { text: builderData.title, size: builderData.coverFontSize, color: builderData.coverColor },
-          1 
+          1
       );
-      
+
+      updateProgress('Creating back cover...');
       const backCoverData = await generateLayout([], fCanvas, { text: "The End", size: 40, color: '#999' }, 1);
 
       const newLeaves = [];
@@ -182,12 +195,14 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       }));
 
       setBookPages(finalPages);
+      setProgress(100);
       setStatus('✅ Done!');
-      setTimeout(() => { onClose(); setIsProcessing(false); }, 1000);
+      setTimeout(() => { onClose(); setIsProcessing(false); setProgress(0); }, 1000);
 
     } catch (e) {
       console.error(e);
-      setStatus('❌ Error');
+      setStatus('❌ Error: ' + (e.message || 'Unknown error'));
+      setProgress(0);
       setIsProcessing(false);
     } finally {
       fCanvas.dispose();
@@ -257,11 +272,29 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
           />
         </div>
 
+        {/* Progress Bar */}
+        {isProcessing && (
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-purple-600 font-medium">{status}</span>
+              <span className="text-gray-500">{progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm font-medium text-purple-600 animate-pulse">{status}</div>
+          <div className="text-sm font-medium text-purple-600">{!isProcessing && status}</div>
           <div className="flex gap-3">
-            <button onClick={onClose} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-            <button onClick={handleBuild} disabled={isProcessing} className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium">{isProcessing ? 'Generating...' : 'Create Book'}</button>
+            <button onClick={onClose} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50">Cancel</button>
+            <button onClick={handleBuild} disabled={isProcessing} className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium disabled:opacity-50">
+              {isProcessing ? `Building... ${progress}%` : 'Create Book'}
+            </button>
           </div>
         </div>
       </div>

@@ -170,17 +170,42 @@ export const UI = () => {
     setIsSyncing(true);
     setSaveStatus('Saving...');
 
-    // Only store minimal texture data - skip fabricJSON in cover_url check
+    // Extract only URLs from fabricJSON - strip out base64 textures to save space
+    const extractUrls = (fabricJSON) => {
+      if (!fabricJSON?.objects) return [];
+      return fabricJSON.objects
+        .filter(obj => obj.type === 'image' && obj.src && !obj.src.startsWith('data:'))
+        .map(obj => obj.src);
+    };
+
+    // Create lightweight content - only fabricJSON (no base64 textures)
+    const lightweightPages = pages.map(page => ({
+      id: page.id,
+      pageNumber: page.pageNumber,
+      front: {
+        fabricJSON: page.front?.fabricJSON || null,
+        type: page.front?.type || 'page',
+        urls: extractUrls(page.front?.fabricJSON)
+      },
+      back: {
+        fabricJSON: page.back?.fabricJSON || null,
+        type: page.back?.type || 'page',
+        urls: extractUrls(page.back?.fabricJSON)
+      }
+    }));
+
+    // Get cover URL (if it's a URL, not base64)
     const coverTexture = pages[0]?.front?.texture;
-    // Truncate cover_url if it's a huge base64 (for thumbnail only)
-    const coverUrl = coverTexture && coverTexture.length < 1000 ? coverTexture : null;
+    const coverUrl = coverTexture && !coverTexture.startsWith('data:') && coverTexture.length < 500
+      ? coverTexture
+      : null;
 
     const bookPayload = {
-        user_id: user.id,
-        content: pages,
-        title: builderData.title || 'My 3D Book',
-        cover_url: coverUrl,
-        updated_at: new Date().toISOString()
+      user_id: user.id,
+      content: lightweightPages,
+      title: builderData.title || 'My 3D Book',
+      cover_url: coverUrl,
+      updated_at: new Date().toISOString()
     };
 
     try {
@@ -244,8 +269,26 @@ export const UI = () => {
     }
   }, [libraryOpen, user]); 
 
-  // Audio & Video
-  useEffect(() => { const audio = new Audio("/audios/page-flip-01a.mp3"); audio.play().catch(()=>{}); }, [page]);
+  // Mute state (persisted)
+  const [muted, setMuted] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('book-muted') === 'true';
+    }
+    return false;
+  });
+
+  // Audio - page flip sound
+  useEffect(() => {
+    if (muted) return;
+    const audio = new Audio("/audios/page-flip-01a.mp3");
+    audio.volume = 0.3; // Lower default volume
+    audio.play().catch(() => {});
+  }, [page, muted]);
+
+  // Persist mute preference
+  useEffect(() => {
+    localStorage.setItem('book-muted', muted ? 'true' : 'false');
+  }, [muted]);
   useEffect(() => { if (videoRef.current) videoRef.current.play().catch(()=>{}); }, []);
 
   // --- Handlers ---
@@ -430,13 +473,26 @@ export const UI = () => {
           </div>
         )}
 
-        {/* Language Toggle */}
-        <button
-          className="bg-white/80 hover:bg-white backdrop-blur-sm text-gray-700 px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all"
-          onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
-        >
-          {language === 'en' ? 'עב' : 'En'}
-        </button>
+        {/* Language Toggle + Mute Button */}
+        <div className="flex gap-2">
+          <button
+            className="bg-white/80 hover:bg-white backdrop-blur-sm text-gray-700 px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all"
+            onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
+          >
+            {language === 'en' ? 'עב' : 'En'}
+          </button>
+          <button
+            className={`backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all ${
+              muted
+                ? 'bg-red-100 hover:bg-red-200 text-red-600'
+                : 'bg-white/80 hover:bg-white text-gray-700'
+            }`}
+            onClick={() => setMuted(!muted)}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
+        </div>
 
         {/* Action Menu - hide when viewing shared */}
         {user && !viewingShared && (
