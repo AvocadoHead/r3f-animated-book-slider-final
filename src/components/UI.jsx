@@ -1,10 +1,10 @@
 import { useAtom } from "jotai";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import {
   bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom,
   currentBookIdAtom, setBookPagesAtom, addPageAtom, builderDataAtom, removePageAtom, reorderPagesAtom,
-  viewingSharedBookAtom, sharedBookInfoAtom
+  viewingSharedBookAtom, sharedBookInfoAtom, fullscreenMediaAtom
 } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
@@ -32,6 +32,7 @@ export const UI = () => {
   const [, reorderPages] = useAtom(reorderPagesAtom);
   const [viewingShared] = useAtom(viewingSharedBookAtom);
   const [sharedBookInfo] = useAtom(sharedBookInfoAtom);
+  const [fullscreenMedia, setFullscreenMedia] = useAtom(fullscreenMediaAtom);
   const [language, setLanguage] = useAtom(languageAtom);
 
   // Local State
@@ -45,10 +46,45 @@ export const UI = () => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(''); // 'Saving...', 'Saved!', 'Save failed!'
   const lastSavedContentRef = useRef(null);
-  
+
   const videoRef = useRef(null);
   const t = translations[language];
+
+  // Extract media from current page's fabricJSON
+  const currentPageMedia = useMemo(() => {
+    if (!pages || pages.length === 0) return null;
+
+    // Get the currently visible page data
+    let pageData = null;
+    if (page === 0) {
+      pageData = pages[0]?.front;
+    } else if (page === pages.length) {
+      pageData = pages[pages.length - 1]?.back;
+    } else if (page > 0 && page < pages.length) {
+      // Show front side of current page
+      pageData = pages[page]?.front;
+    }
+
+    if (!pageData?.fabricJSON?.objects) return null;
+
+    // Find video objects in the fabricJSON
+    const mediaObjects = pageData.fabricJSON.objects.filter(
+      obj => obj.videoMetadata || obj.isVideo
+    );
+
+    if (mediaObjects.length > 0) {
+      const firstMedia = mediaObjects[0];
+      return {
+        type: 'video',
+        metadata: firstMedia.videoMetadata,
+        embedUrl: firstMedia.videoMetadata?.embedUrl
+      };
+    }
+
+    return null;
+  }, [pages, page]);
 
   // --- AUTH HOOK (Source of Truth) ---
   const { user } = useAuth();
@@ -132,6 +168,7 @@ export const UI = () => {
     }
 
     setIsSyncing(true);
+    setSaveStatus('Saving...');
 
     // Only store minimal texture data - skip fabricJSON in cover_url check
     const coverTexture = pages[0]?.front?.texture;
@@ -143,25 +180,42 @@ export const UI = () => {
         content: pages,
         title: builderData.title || 'My 3D Book',
         cover_url: coverUrl,
-        updated_at: new Date()
+        updated_at: new Date().toISOString()
     };
 
     try {
+      let savedBookId = currentBookId;
+
       if (currentBookId) {
-          await supabase.from('books').update(bookPayload).eq('id', currentBookId);
+        const { error } = await supabase.from('books').update(bookPayload).eq('id', currentBookId);
+        if (error) throw error;
       } else {
-          const { data } = await supabase.from('books').insert(bookPayload).select().single();
-          if (data) setCurrentBookId(data.id);
+        const { data, error } = await supabase.from('books').insert(bookPayload).select().single();
+        if (error) throw error;
+        if (data) {
+          savedBookId = data.id;
+          setCurrentBookId(data.id);
+        }
       }
 
       // Track what we saved
       lastSavedContentRef.current = contentKey;
       setHasUnsavedChanges(false);
+      setSaveStatus('Saved!');
+
+      // Show success briefly then clear
+      setTimeout(() => setSaveStatus(''), 2000);
+
+      return savedBookId;
     } catch (err) {
       console.error('Save failed:', err);
+      setSaveStatus('Save failed!');
+      alert(`Save failed: ${err.message || 'Unknown error'}\n\nCheck console for details.`);
+      setTimeout(() => setSaveStatus(''), 3000);
+      return null;
+    } finally {
+      setIsSyncing(false);
     }
-
-    setIsSyncing(false);
   };
 
   // --- Effects ---
@@ -450,19 +504,42 @@ export const UI = () => {
             </button>
             <div className="h-px bg-gray-200 my-1"></div>
             <button
-              className={`text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium flex items-center justify-between ${hasUnsavedChanges ? 'text-orange-600' : 'text-gray-700'}`}
+              className={`text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium flex items-center justify-between ${
+                saveStatus === 'Save failed!' ? 'text-red-600' :
+                saveStatus === 'Saved!' ? 'text-green-600' :
+                hasUnsavedChanges ? 'text-orange-600' : 'text-gray-700'
+              }`}
               onClick={() => saveBookToDB(true)}
               disabled={isSyncing}
             >
-              <span>{hasUnsavedChanges ? '● Save Book' : 'Save Book'}</span>
-              {isSyncing && <span className="text-xs text-gray-400">Saving...</span>}
+              <span className="flex items-center gap-2">
+                {saveStatus === 'Saving...' && <span className="inline-block w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></span>}
+                {saveStatus === 'Saved!' && <span className="text-green-500">✓</span>}
+                {saveStatus === 'Save failed!' && <span className="text-red-500">✕</span>}
+                {!saveStatus && hasUnsavedChanges && <span className="text-orange-500">●</span>}
+                {saveStatus || 'Save Book'}
+              </span>
             </button>
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-purple-50 transition-colors text-sm font-medium text-purple-600 flex items-center gap-2"
-              onClick={handleShare}
+              onClick={async () => {
+                // Save first, then share
+                const savedId = await saveBookToDB(true);
+                if (savedId) {
+                  const shareUrl = `${window.location.origin}/book/${savedId}`;
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setSaveStatus('Link copied!');
+                    setTimeout(() => setSaveStatus(''), 3000);
+                  } catch (err) {
+                    prompt('Copy this link to share your book:', shareUrl);
+                  }
+                }
+              }}
+              disabled={isSyncing}
             >
               <span>🔗</span>
-              <span>Share Book</span>
+              <span>Save & Share</span>
             </button>
             <div className="h-px bg-gray-200 my-1"></div>
             <button
@@ -525,7 +602,58 @@ export const UI = () => {
           </div>
         </div>
       )}
-      
+
+      {/* Fullscreen Media Button - appears when viewing page with media */}
+      {currentPageMedia && (
+        <button
+          onClick={() => setFullscreenMedia(currentPageMedia)}
+          className="fixed bottom-24 right-6 z-40 pointer-events-auto bg-black/70 hover:bg-black/90 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 transition-all hover:scale-105 backdrop-blur-sm border border-white/20"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+          <span className="text-sm font-medium">View Fullscreen</span>
+        </button>
+      )}
+
+      {/* Fullscreen Media Modal */}
+      {fullscreenMedia && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center pointer-events-auto"
+          onClick={() => setFullscreenMedia(null)}
+        >
+          <button
+            onClick={() => setFullscreenMedia(null)}
+            className="absolute top-6 right-6 text-white/80 hover:text-white text-xl bg-white/10 hover:bg-white/20 w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+          >
+            ✕
+          </button>
+          <div
+            className="w-full max-w-5xl aspect-video mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {fullscreenMedia.type === 'video' && fullscreenMedia.embedUrl && (
+              <iframe
+                src={fullscreenMedia.embedUrl}
+                className="w-full h-full rounded-xl shadow-2xl"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowFullScreen
+              />
+            )}
+            {fullscreenMedia.type === 'image' && fullscreenMedia.url && (
+              <img
+                src={fullscreenMedia.url}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl mx-auto"
+                alt="Fullscreen view"
+              />
+            )}
+          </div>
+          <p className="absolute bottom-6 text-white/50 text-sm">
+            Click anywhere or press ✕ to close
+          </p>
+        </div>
+      )}
+
       <main className="pointer-events-none select-none z-10 fixed inset-0 flex justify-between flex-col">
         <div className="flex-1"></div>
         <div className="w-full overflow-auto pointer-events-auto flex justify-center pb-4">

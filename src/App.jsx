@@ -51,7 +51,7 @@ function App() {
       <UI />
       <Canvas
         shadows
-        camera={{ position: [-0.5, 1, 4], fov: 45 }}
+        camera={{ position: [-0.3, 0.8, 2.8], fov: 45 }}
         style={{
           position: 'fixed',
           top: 0,

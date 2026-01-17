@@ -13,10 +13,10 @@ export const Experience = () => {
       >
         <Book />
       </Float>
-      <OrbitControls 
-        maxPolarAngle={Math.PI / 2} 
-        minDistance={3}
-        maxDistance={15}
+      <OrbitControls
+        maxPolarAngle={Math.PI / 2}
+        minDistance={1.5}
+        maxDistance={12}
       />
       <Environment preset="studio"></Environment>
       

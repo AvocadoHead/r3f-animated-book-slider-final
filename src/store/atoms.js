@@ -183,3 +183,6 @@ export const reorderPagesAtom = atom(
 // Shared book viewing mode
 export const viewingSharedBookAtom = atom(false);
 export const sharedBookInfoAtom = atom(null); // { id, title, ownerName }
+
+// Fullscreen media viewer
+export const fullscreenMediaAtom = atom(null); // { type: 'video'|'image', url, embedUrl }
