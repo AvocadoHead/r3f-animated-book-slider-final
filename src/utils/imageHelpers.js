@@ -13,11 +13,13 @@ export const normalizeImageUrl = (input) => {
 
   const driveId = extractGoogleDriveId(clean);
   if (driveId) {
-    return `https://drive.google.com/uc?export=view&id=${driveId}`;
+    // Use lh3 format for CORS compatibility
+    return `https://lh3.googleusercontent.com/d/${driveId}`;
   }
 
+  // Check if it's just a raw Drive ID
   if (/^[a-zA-Z0-9_-]{25,}$/.test(clean)) {
-    return `https://drive.google.com/uc?export=view&id=${clean}`;
+    return `https://lh3.googleusercontent.com/d/${clean}`;
   }
 
   if (/^https?:\/\//i.test(clean)) {
@@ -32,4 +34,16 @@ export const getProxiedImageUrl = (input) => {
   if (!/^https?:\/\//i.test(input)) return input;
   const url = input.replace(/^https?:\/\//i, '');
   return `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
+};
+
+// Convert any Google Drive URL to CORS-friendly lh3 format
+export const toCorsFriendlyUrl = (url) => {
+  if (!url) return url;
+
+  const driveId = extractGoogleDriveId(url);
+  if (driveId) {
+    return `https://lh3.googleusercontent.com/d/${driveId}`;
+  }
+
+  return url;
 };

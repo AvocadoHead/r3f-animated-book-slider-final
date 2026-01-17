@@ -1,3 +1,12 @@
+// Convert Google Drive URLs to CORS-friendly lh3 format
+const convertToLh3 = (url) => {
+  const match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://lh3.googleusercontent.com/d/${match[1]}`;
+  }
+  return url;
+};
+
 // Optimized list with first 42 images for better performance
 const rawUrls = [
   "https://drive.google.com/uc?export=view&id=1DI1jomqISKMTkY7s6rgc9pNgNcIrbyxx",
@@ -44,4 +53,5 @@ const rawUrls = [
   "https://drive.google.com/uc?export=view&id=16jwGI-l3VXWQ4yzuoAOvHEunM28thFEN"
 ];
 
-export const watercolorPages = rawUrls;
+// Export with CORS-friendly URLs
+export const watercolorPages = rawUrls.map(convertToLh3);
