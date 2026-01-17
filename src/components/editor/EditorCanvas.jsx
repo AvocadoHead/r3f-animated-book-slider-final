@@ -4,6 +4,7 @@ import { useAtom } from 'jotai';
 import { clipboardAtom } from '../../store/atoms';
 import { uploadFile } from '../../lib/supabase';
 import { FrameOverlay } from './FrameOverlay';
+import { createVideoMetadata, createVideoPlaceholder, isVideoUrl } from '../../utils/videoHelpers';
 
 const PAGE_DIMENSIONS = {
   width: 800,
@@ -25,6 +26,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   
   const [history, setHistory] = useState([]);
   const [historyStep, setHistoryStep] = useState(-1);
+  const [videoPlayerUrl, setVideoPlayerUrl] = useState(null);
 
   const processUrl = (url) => {
     if (!url) return null;
@@ -258,6 +260,129 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
+  const addVideo = useCallback(() => {
+    const url = prompt("Video URL (YouTube, Vimeo, or Google Drive):");
+    if (!url) return;
+
+    setIsLoading(true);
+    setStatus('Processing video...');
+
+    try {
+      const videoMeta = createVideoMetadata(url);
+      const placeholderDataUrl = createVideoPlaceholder(videoMeta);
+
+      fabric.Image.fromURL(placeholderDataUrl, (img) => {
+        if (!img) {
+          alert('Could not create video placeholder');
+          setIsLoading(false);
+          setStatus('');
+          return;
+        }
+
+        // Scale to fit nicely
+        if (img.width > 350) img.scaleToWidth(350);
+
+        // Store video metadata in the fabric object
+        img.set({
+          left: 200,
+          top: 200,
+          videoMetadata: videoMeta,
+          isVideo: true,
+        });
+
+        fabricCanvasRef.current.add(img);
+        fabricCanvasRef.current.setActiveObject(img);
+        saveHistory();
+        setIsLoading(false);
+        setStatus(`${videoMeta.type} video added!`);
+        setTimeout(() => setStatus(''), 1500);
+      });
+    } catch (err) {
+      console.error('Video add failed:', err);
+      setIsLoading(false);
+      setStatus('Failed to add video');
+      setTimeout(() => setStatus(''), 2000);
+    }
+  }, []);
+
+  const handleCanvasClick = useCallback((e) => {
+    const target = e.target;
+    if (target && target.isVideo && target.videoMetadata) {
+      // Open video player
+      setVideoPlayerUrl(target.videoMetadata.embedUrl);
+    }
+  }, []);
+
+  const importGoogleDocText = useCallback(async () => {
+    const url = prompt(
+      "Enter Google Doc URL:\n\n" +
+      "Supported formats:\n" +
+      "• Published Doc: docs.google.com/document/d/.../pub\n" +
+      "• Shared Doc: docs.google.com/document/d/.../edit\n" +
+      "• Drive text file: drive.google.com/file/d/..."
+    );
+
+    if (!url) return;
+
+    setIsLoading(true);
+    setStatus('Fetching document...');
+
+    try {
+      // Extract doc ID
+      const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (!docIdMatch) {
+        throw new Error('Could not extract document ID from URL');
+      }
+
+      const docId = docIdMatch[1];
+
+      // Try to fetch as published HTML or plain text export
+      const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
+
+      // Use CORS proxy for cross-origin request
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(exportUrl)}`;
+
+      const response = await fetch(proxyUrl);
+      if (!response.ok) {
+        throw new Error('Could not fetch document. Make sure it\'s publicly shared.');
+      }
+
+      let text = await response.text();
+
+      // Clean up the text (remove excessive whitespace)
+      text = text.trim().substring(0, 2000); // Limit length for page
+
+      if (!text) {
+        throw new Error('Document appears to be empty');
+      }
+
+      // Add as text object
+      const textObj = new fabric.IText(text, {
+        left: 50,
+        top: 100,
+        fontSize: 18,
+        fontFamily: fontFamily,
+        fill: '#333333',
+        width: PAGE_DIMENSIONS.width - 100,
+        lineHeight: 1.4,
+      });
+
+      fabricCanvasRef.current.add(textObj);
+      fabricCanvasRef.current.setActiveObject(textObj);
+      saveHistory();
+
+      setIsLoading(false);
+      setStatus('Document imported!');
+      setTimeout(() => setStatus(''), 1500);
+    } catch (err) {
+      console.error('Google Doc import failed:', err);
+      setIsLoading(false);
+      setStatus('Import failed - check sharing settings');
+      setTimeout(() => setStatus(''), 3000);
+      alert('Could not import document.\n\nMake sure:\n1. The document is publicly shared\n2. Anyone with the link can view it');
+    }
+  }, [fontFamily]);
+
   const copyObject = useCallback(async () => {
     const active = fabricCanvasRef.current?.getActiveObject();
     if (active) { setClipboard(await active.clone()); setStatus('Copied'); setTimeout(()=>setStatus(''),1000); }
@@ -309,9 +434,11 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
              {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
            </select>
            <button onClick={addText} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm">📝 Text</button>
+           <button onClick={importGoogleDocText} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm" title="Import text from Google Doc">📄 Doc</button>
            <div className="w-px bg-gray-300 mx-1 h-6"/>
            <button onClick={addImageFromUrl} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm" title="Add image from URL">🔗 URL</button>
            <button onClick={() => fileInputRef.current?.click()} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm" title="Upload image from device">📤 Upload</button>
+           <button onClick={addVideo} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm" title="Add video (YouTube, Vimeo, Google Drive)">🎬 Video</button>
            <input
              ref={fileInputRef}
              type="file"
@@ -319,6 +446,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
              onChange={handleFileUpload}
              className="hidden"
            />
+           <div className="w-px bg-gray-300 mx-1 h-6"/>
            <button onClick={copyObject} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm">Copy</button>
            <button onClick={pasteObject} className="px-3 py-1 bg-white border rounded hover:bg-gray-50 text-sm">Paste</button>
            <div className="w-px bg-gray-300 mx-1 h-6"/>
@@ -350,6 +478,29 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
             </button>
         </div>
       </div>
+
+      {/* Video Player Modal */}
+      {videoPlayerUrl && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center"
+          onClick={() => setVideoPlayerUrl(null)}
+        >
+          <div className="relative w-full max-w-4xl aspect-video" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setVideoPlayerUrl(null)}
+              className="absolute -top-10 right-0 text-white text-2xl hover:text-gray-300"
+            >
+              ✕ Close
+            </button>
+            <iframe
+              src={videoPlayerUrl}
+              className="w-full h-full rounded-lg"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

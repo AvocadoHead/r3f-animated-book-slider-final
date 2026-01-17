@@ -44,6 +44,8 @@ export const UI = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const lastSavedContentRef = useRef(null);
   
   const videoRef = useRef(null);
   const t = translations[language];
@@ -117,36 +119,68 @@ export const UI = () => {
     }
   };
 
-  // 4. Save Current Book
-  const saveBookToDB = async () => {
-    if (!user) return;
+  // 4. Save Current Book (optimized to reduce Supabase usage)
+  const saveBookToDB = async (force = false) => {
+    if (!user || viewingShared) return;
+
+    // Create a content hash to check if anything changed
+    const contentKey = JSON.stringify({ pages, title: builderData.title });
+
+    // Skip save if content hasn't changed (unless forced)
+    if (!force && lastSavedContentRef.current === contentKey) {
+      return;
+    }
+
     setIsSyncing(true);
-    
+
+    // Only store minimal texture data - skip fabricJSON in cover_url check
+    const coverTexture = pages[0]?.front?.texture;
+    // Truncate cover_url if it's a huge base64 (for thumbnail only)
+    const coverUrl = coverTexture && coverTexture.length < 1000 ? coverTexture : null;
+
     const bookPayload = {
         user_id: user.id,
         content: pages,
         title: builderData.title || 'My 3D Book',
-        cover_url: pages[0]?.front?.texture || null,
+        cover_url: coverUrl,
         updated_at: new Date()
     };
 
-    if (currentBookId) {
-        await supabase.from('books').update(bookPayload).eq('id', currentBookId);
-    } else {
-        const { data } = await supabase.from('books').insert(bookPayload).select().single();
-        if (data) setCurrentBookId(data.id);
+    try {
+      if (currentBookId) {
+          await supabase.from('books').update(bookPayload).eq('id', currentBookId);
+      } else {
+          const { data } = await supabase.from('books').insert(bookPayload).select().single();
+          if (data) setCurrentBookId(data.id);
+      }
+
+      // Track what we saved
+      lastSavedContentRef.current = contentKey;
+      setHasUnsavedChanges(false);
+    } catch (err) {
+      console.error('Save failed:', err);
     }
+
     setIsSyncing(false);
   };
 
   // --- Effects ---
 
-  // Auto-save
+  // Track unsaved changes
   useEffect(() => {
-    if (!user) return;
-    const timer = setTimeout(() => saveBookToDB(), 3000);
+    if (!user || viewingShared) return;
+    const contentKey = JSON.stringify({ pages, title: builderData.title });
+    if (lastSavedContentRef.current && lastSavedContentRef.current !== contentKey) {
+      setHasUnsavedChanges(true);
+    }
+  }, [pages, builderData.title, user, viewingShared]);
+
+  // Auto-save with longer debounce (15 seconds instead of 3)
+  useEffect(() => {
+    if (!user || viewingShared) return;
+    const timer = setTimeout(() => saveBookToDB(), 15000);
     return () => clearTimeout(timer);
-  }, [pages, user]);
+  }, [pages, user, viewingShared]);
 
   // Load Library when Modal Opens
   // THIS WAS THE SYNTAX ERROR IN YOUR SNIPPET
@@ -416,11 +450,11 @@ export const UI = () => {
             </button>
             <div className="h-px bg-gray-200 my-1"></div>
             <button
-              className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700 flex items-center justify-between"
-              onClick={saveBookToDB}
+              className={`text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium flex items-center justify-between ${hasUnsavedChanges ? 'text-orange-600' : 'text-gray-700'}`}
+              onClick={() => saveBookToDB(true)}
               disabled={isSyncing}
             >
-              <span>Save Book</span>
+              <span>{hasUnsavedChanges ? '● Save Book' : 'Save Book'}</span>
               {isSyncing && <span className="text-xs text-gray-400">Saving...</span>}
             </button>
             <button

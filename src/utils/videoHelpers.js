@@ -91,6 +91,38 @@ export function getYouTubeEmbedUrl(videoId) {
 }
 
 /**
+ * Parse Vimeo URL
+ */
+export function parseVimeoUrl(url) {
+  if (!url) return null;
+
+  // Pattern 1: https://vimeo.com/VIDEO_ID
+  let match = url.match(/vimeo\.com\/(\d+)/);
+  if (match) return match[1];
+
+  // Pattern 2: https://player.vimeo.com/video/VIDEO_ID
+  match = url.match(/player\.vimeo\.com\/video\/(\d+)/);
+  if (match) return match[1];
+
+  return null;
+}
+
+/**
+ * Get Vimeo thumbnail (requires API call, fallback to placeholder)
+ */
+export function getVimeoThumbnail(videoId) {
+  // Vimeo thumbnails require API call, use placeholder
+  return null;
+}
+
+/**
+ * Get Vimeo embed URL
+ */
+export function getVimeoEmbedUrl(videoId) {
+  return `https://player.vimeo.com/video/${videoId}`;
+}
+
+/**
  * Create video metadata object for storage
  */
 export function createVideoMetadata(url) {
@@ -103,6 +135,7 @@ export function createVideoMetadata(url) {
       thumbnailUrl: getGoogleDriveThumbnail(googleDriveId),
       previewUrl: getGoogleDrivePreviewUrl(googleDriveId),
       directUrl: getGoogleDriveDirectUrl(googleDriveId),
+      embedUrl: getGoogleDrivePreviewUrl(googleDriveId),
     };
   }
 
@@ -117,11 +150,22 @@ export function createVideoMetadata(url) {
     };
   }
 
+  const vimeoId = parseVimeoUrl(url);
+  if (vimeoId) {
+    return {
+      type: 'vimeo',
+      id: vimeoId,
+      originalUrl: url,
+      thumbnailUrl: null, // Vimeo requires API
+      embedUrl: getVimeoEmbedUrl(vimeoId),
+    };
+  }
+
   // Generic video URL
   return {
     type: 'generic',
     originalUrl: url,
-    thumbnailUrl: null, // Will need manual thumbnail
+    thumbnailUrl: null,
     embedUrl: url,
   };
 }
