@@ -494,11 +494,34 @@ export const UI = () => {
           </button>
         </div>
 
-        {/* Action Menu - hide when viewing shared */}
+        {/* Hamburger Menu - hide when viewing shared */}
         {user && !viewingShared && (
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl p-2 flex flex-col gap-1 min-w-[160px]">
-            {/* Editable Book Title */}
-            <div className="px-4 py-2 border-b border-gray-200 mb-1">
+          <div className="relative">
+            {/* Hamburger Toggle Button */}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg ${
+                menuOpen
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/90 backdrop-blur-xl text-gray-700 hover:bg-white'
+              }`}
+            >
+              {menuOpen ? (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+
+            {/* Dropdown Menu */}
+            {menuOpen && (
+              <div className="absolute top-14 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 min-w-[200px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Editable Book Title */}
+                <div className="px-4 py-2 border-b border-gray-200 mb-1">
               {editingTitle ? (
                 <div className="flex flex-col gap-2">
                   <input
@@ -536,25 +559,25 @@ export const UI = () => {
 
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
-              onClick={() => setLibraryOpen(true)}
+              onClick={() => { setLibraryOpen(true); setMenuOpen(false); }}
             >
               My Books
             </button>
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
-              onClick={handleEditCurrentPage}
+              onClick={() => { handleEditCurrentPage(); setMenuOpen(false); }}
             >
               Edit Page
             </button>
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
-              onClick={() => addPage()}
+              onClick={() => { addPage(); setMenuOpen(false); }}
             >
               Add Page
             </button>
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
-              onClick={() => setBuilderOpen(true)}
+              onClick={() => { setBuilderOpen(true); setMenuOpen(false); }}
             >
               Book Builder
             </button>
@@ -600,10 +623,12 @@ export const UI = () => {
             <div className="h-px bg-gray-200 my-1"></div>
             <button
               className="text-left px-4 py-2.5 rounded-xl hover:bg-red-50 transition-colors text-sm font-medium text-red-600"
-              onClick={() => setResetOpen(true)}
+              onClick={() => { setResetOpen(true); setMenuOpen(false); }}
             >
               New Book
             </button>
+              </div>
+            )}
           </div>
         )}
       </div>
