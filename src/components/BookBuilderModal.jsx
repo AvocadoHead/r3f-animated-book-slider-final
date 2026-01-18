@@ -7,20 +7,47 @@ import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom }
 const PAGE_W = 800;
 const PAGE_H = 1070;
 const ACTUAL_W = 1325;
+const MAX_URLS = 100; // Maximum number of URLs to prevent crashes
+
+// Default/empty builder state
+const DEFAULT_BUILDER_STATE = {
+  title: '',
+  coverUrl: '',
+  urls: '',
+  itemsPerPage: 1,
+  coverColor: '#000000',
+  coverFontSize: '60',
+  shouldReset: true
+};
 
 export const BookBuilderModal = ({ isOpen, onClose }) => {
   const [, setBookPages] = useAtom(setBookPagesAtom);
   const [builderData, setBuilderData] = useAtom(builderDataAtom);
-  
+
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0); // 0-100
+  const [urlCount, setUrlCount] = useState(0);
   const canvasRef = useRef(null);
 
   if (!isOpen) return null;
 
   const updateData = (field, value) => {
     setBuilderData(prev => ({ ...prev, [field]: value }));
+
+    // Track URL count when urls field changes
+    if (field === 'urls') {
+      const urls = value.match(/(https?:\/\/[^\s]+)/g) || [];
+      setUrlCount(urls.length);
+    }
+  };
+
+  // Clear form and reset to defaults
+  const clearForm = () => {
+    setBuilderData(DEFAULT_BUILDER_STATE);
+    setUrlCount(0);
+    setStatus('Form cleared');
+    setTimeout(() => setStatus(''), 1500);
   };
 
   const processUrl = (url) => {
@@ -109,13 +136,26 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
   };
 
   const handleBuild = async () => {
+    // Extract and validate URLs
+    const urlList = builderData.urls.match(/(https?:\/\/[^\s]+)/g) || [];
+
+    // Validation: Check URL count limit
+    if (urlList.length > MAX_URLS) {
+      setStatus(`❌ Too many URLs (${urlList.length}). Maximum is ${MAX_URLS}.`);
+      return;
+    }
+
+    if (urlList.length === 0 && !builderData.coverUrl && !builderData.title) {
+      setStatus('❌ Please add a title, cover, or some image URLs.');
+      return;
+    }
+
     setIsProcessing(true);
     setProgress(0);
     setStatus('Initializing...');
 
     const fCanvas = new fabric.Canvas(canvasRef.current, { width: PAGE_W, height: PAGE_H });
-    const urlList = builderData.urls.match(/(https?:\/\/[^\s]+)/g) || [];
-    const totalSteps = urlList.length + Math.ceil(urlList.length / builderData.itemsPerPage) + 3; // images + layouts + cover/back/finalize
+    const totalSteps = urlList.length + Math.ceil(urlList.length / builderData.itemsPerPage) + 3;
     let currentStep = 0;
 
     const updateProgress = (stepStatus) => {
@@ -197,13 +237,27 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       setBookPages(finalPages);
       setProgress(100);
       setStatus('✅ Done!');
-      setTimeout(() => { onClose(); setIsProcessing(false); setProgress(0); }, 1000);
+
+      // Clear cache on successful build
+      setBuilderData(DEFAULT_BUILDER_STATE);
+      setUrlCount(0);
+
+      setTimeout(() => {
+        onClose();
+        setIsProcessing(false);
+        setProgress(0);
+        setStatus('');
+      }, 1000);
 
     } catch (e) {
       console.error(e);
       setStatus('❌ Error: ' + (e.message || 'Unknown error'));
       setProgress(0);
       setIsProcessing(false);
+
+      // Clear cache on error to prevent retrying with bad data
+      setBuilderData(DEFAULT_BUILDER_STATE);
+      setUrlCount(0);
     } finally {
       fCanvas.dispose();
     }
@@ -257,7 +311,18 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         <div className="mb-6">
           <h3 className="font-bold text-gray-700 mb-3">2. Add Pages</h3>
           <div className="flex justify-between mb-2">
-            <label className="text-xs font-medium text-gray-500 uppercase">Image URLs (Bulk)</label>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-gray-500 uppercase">Image URLs (Bulk)</label>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                urlCount > MAX_URLS
+                  ? 'bg-red-100 text-red-600'
+                  : urlCount > MAX_URLS * 0.8
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {urlCount}/{MAX_URLS}
+              </span>
+            </div>
             <div className="flex gap-2">
                 {[1, 2, 4].map(n => (
                     <button key={n} onClick={() => updateData('itemsPerPage', n)} className={`text-xs px-2 py-1 rounded border ${builderData.itemsPerPage === n ? 'bg-purple-600 text-white' : 'bg-white text-gray-600'}`}>{n} per page</button>
@@ -265,11 +330,18 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
             </div>
           </div>
           <textarea
-            className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-500"
-            placeholder="Paste list of image URLs here..."
+            className={`w-full h-32 p-3 border rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-500 ${
+              urlCount > MAX_URLS ? 'border-red-400 bg-red-50' : 'border-gray-300'
+            }`}
+            placeholder="Paste list of image URLs here (max 100)..."
             value={builderData.urls}
             onChange={(e) => updateData('urls', e.target.value)}
           />
+          {urlCount > MAX_URLS && (
+            <p className="text-red-500 text-xs mt-1">
+              Too many URLs. Please remove {urlCount - MAX_URLS} URLs to continue.
+            </p>
+          )}
         </div>
 
         {/* Progress Bar */}
@@ -289,10 +361,24 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         )}
 
         <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm font-medium text-purple-600">{!isProcessing && status}</div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={clearForm}
+              disabled={isProcessing}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50 transition-colors"
+              title="Clear all form fields"
+            >
+              🗑️ Clear Form
+            </button>
+            <div className="text-sm font-medium text-purple-600">{!isProcessing && status}</div>
+          </div>
           <div className="flex gap-3">
             <button onClick={onClose} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50">Cancel</button>
-            <button onClick={handleBuild} disabled={isProcessing} className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium disabled:opacity-50">
+            <button
+              onClick={handleBuild}
+              disabled={isProcessing || urlCount > MAX_URLS}
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {isProcessing ? `Building... ${progress}%` : 'Create Book'}
             </button>
           </div>
