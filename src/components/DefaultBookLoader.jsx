@@ -18,9 +18,9 @@ export const DefaultBookLoader = () => {
 
     hasLoaded.current = true;
 
-    console.log('Loading default book with', watercolorPages.length, 'images...');
+    console.log('Loading default book with random watercolor images...');
 
-    buildDefaultBookPages(watercolorPages).then((defaultPages) => {
+    buildDefaultBookPages(watercolorPages, { randomize: true, count: 16 }).then((defaultPages) => {
       if (defaultPages?.length) {
         console.log('Default book loaded:', defaultPages.length, 'pages');
         setBookPages(defaultPages);

@@ -5,13 +5,8 @@ import { clipboardAtom } from '../../store/atoms';
 import { uploadFile } from '../../lib/supabase';
 import { FrameOverlay } from './FrameOverlay';
 import { createVideoMetadata, createVideoPlaceholder, isVideoUrl } from '../../utils/videoHelpers';
-
-const PAGE_DIMENSIONS = {
-  width: 800,
-  height: 1070,
-  actualWidth: 1325,
-  actualHeight: 1771,
-};
+import { normalizeImageUrl } from '../../utils/imageHelpers';
+import { PAGE_DIMENSIONS } from '../../config/pageConfig';
 
 const FONTS = ['Heebo', 'Rubik', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
 
@@ -27,16 +22,6 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   const [history, setHistory] = useState([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState(null);
-
-  const processUrl = (url) => {
-    if (!url) return null;
-    const cleanUrl = url.trim();
-    if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('drive.usercontent')) {
-      const idMatch = cleanUrl.match(/[-\w]{25,}/);
-      if (idMatch) return `https://lh3.googleusercontent.com/d/${idMatch[0]}`;
-    }
-    return cleanUrl;
-  };
 
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
@@ -170,7 +155,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   const addImageFromUrl = useCallback(() => {
      let url = prompt("Image URL (Direct link or Google Drive):");
      if(url) {
-         url = processUrl(url);
+         url = normalizeImageUrl(url) || url;
          setIsLoading(true);
          fabric.Image.fromURL(url, (img)=>{
              setIsLoading(false);

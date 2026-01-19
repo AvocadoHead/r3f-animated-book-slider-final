@@ -1,24 +1,9 @@
 import { useState, useRef } from 'react';
 import { useAtom } from 'jotai';
 import * as fabric from 'fabric';
-// FIX: Path adjusted for src/components/BookBuilderModal.jsx
 import { setBookPagesAtom, generatePageId, createBlankTexture, builderDataAtom } from '../store/atoms';
-
-const PAGE_W = 800;
-const PAGE_H = 1070;
-const ACTUAL_W = 1325;
-const MAX_URLS = 100; // Maximum number of URLs to prevent crashes
-
-// Default/empty builder state
-const DEFAULT_BUILDER_STATE = {
-  title: '',
-  coverUrl: '',
-  urls: '',
-  itemsPerPage: 1,
-  coverColor: '#000000',
-  coverFontSize: '60',
-  shouldReset: true
-};
+import { normalizeImageUrl } from '../utils/imageHelpers';
+import { PAGE_DIMENSIONS, GRID_LAYOUTS, getCoverGridLayout, MAX_URLS, DEFAULT_BUILDER_STATE } from '../config/pageConfig';
 
 export const BookBuilderModal = ({ isOpen, onClose }) => {
   const [, setBookPages] = useAtom(setBookPagesAtom);
@@ -50,16 +35,6 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     setTimeout(() => setStatus(''), 1500);
   };
 
-  const processUrl = (url) => {
-    if (!url) return null;
-    const cleanUrl = url.trim();
-    if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('drive.usercontent')) {
-      const idMatch = cleanUrl.match(/[-\w]{25,}/);
-      if (idMatch) return `https://lh3.googleusercontent.com/d/${idMatch[0]}`;
-    }
-    return cleanUrl;
-  };
-
   const loadImage = (url) => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -73,7 +48,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
         retry.onerror = () => resolve(null);
         retry.src = proxyUrl;
       };
-      img.src = processUrl(url);
+      img.src = normalizeImageUrl(url) || url;
     });
   };
 
@@ -81,13 +56,13 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     fabricCanvas.clear();
     fabricCanvas.backgroundColor = '#ffffff';
 
-    const padding = 40;
-    const safeW = PAGE_W - (padding * 2);
-    const safeH = PAGE_H - (padding * 2);
-    
+    const padding = PAGE_DIMENSIONS.padding;
+    const safeW = PAGE_DIMENSIONS.width - (padding * 2);
+    const safeH = PAGE_DIMENSIONS.height - (padding * 2);
+
     if (titleConfig && titleConfig.text) {
         const titleObj = new fabric.IText(titleConfig.text, {
-            left: PAGE_W / 2,
+            left: PAGE_DIMENSIONS.width / 2,
             top: 200,
             originX: 'center',
             fontSize: Number(titleConfig.size),
@@ -100,13 +75,10 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
 
     const currentGrid = forceGrid || builderData.itemsPerPage;
 
-    const gridConfig = {
-      1: [{ x: 0, y: titleConfig ? 0.3 : 0, w: 1, h: titleConfig ? 0.7 : 1 }],
-      2: [{ x: 0, y: 0, w: 1, h: 0.5 }, { x: 0, y: 0.5, w: 1, h: 0.5 }],
-      4: [{ x: 0,y:0,w:0.5,h:0.5 }, { x:0.5,y:0,w:0.5,h:0.5 }, { x:0,y:0.5,w:0.5,h:0.5 }, { x:0.5,y:0.5,w:0.5,h:0.5 }]
-    };
-
-    const slots = gridConfig[currentGrid] || gridConfig[1];
+    // Use cover layout if there's a title, otherwise use standard grid
+    const slots = titleConfig?.text
+      ? getCoverGridLayout(true)
+      : (GRID_LAYOUTS[currentGrid] || GRID_LAYOUTS[1]);
 
     images.forEach((imgObj, index) => {
       if (!imgObj || index >= slots.length) return;
@@ -127,8 +99,8 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     });
 
     fabricCanvas.renderAll();
-    const scaleMultiplier = ACTUAL_W / PAGE_W;
-    
+    const scaleMultiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
+
     return {
       texture: fabricCanvas.toDataURL({ format: 'png', quality: 0.9, multiplier: scaleMultiplier }),
       fabricJSON: fabricCanvas.toJSON(['videoMetadata', 'isVideo'])
@@ -154,7 +126,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
     setProgress(0);
     setStatus('Initializing...');
 
-    const fCanvas = new fabric.Canvas(canvasRef.current, { width: PAGE_W, height: PAGE_H });
+    const fCanvas = new fabric.Canvas(canvasRef.current, { width: PAGE_DIMENSIONS.width, height: PAGE_DIMENSIONS.height });
     const totalSteps = urlList.length + Math.ceil(urlList.length / builderData.itemsPerPage) + 3;
     let currentStep = 0;
 

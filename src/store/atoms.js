@@ -1,5 +1,6 @@
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
+import { PAGE_DIMENSIONS } from '../config/pageConfig';
 
 // --- Helpers ---
 export const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -7,8 +8,8 @@ export const generatePageId = () => `page-${Date.now()}-${Math.random().toString
 export const createBlankTexture = () => {
   if (typeof document === 'undefined') return '';
   const canvas = document.createElement('canvas');
-  canvas.width = 1325;
-  canvas.height = 1771;
+  canvas.width = PAGE_DIMENSIONS.actualWidth;
+  canvas.height = PAGE_DIMENSIONS.actualHeight;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#f5f5f5'; // Light gray paper
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -31,11 +32,10 @@ const initialPages = [
   }
 ];
 
-// --- Atoms ---
+// --- Core State Atoms ---
 export const bookPagesAtom = atom(initialPages);
 export const currentPageAtom = atom(0);
 export const editModeAtom = atom(false);
-export const editingPageAtom = atom(null);
 export const languageAtom = atomWithStorage('language', 'en');
 export const clipboardAtom = atom(null);
 export const currentBookIdAtom = atom(null); // Track database ID of current book
