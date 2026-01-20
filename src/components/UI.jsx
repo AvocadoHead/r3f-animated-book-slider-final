@@ -3,13 +3,15 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import {
   bookPagesAtom, currentPageAtom, editModeAtom, languageAtom, updatePageAtom,
   currentBookIdAtom, setBookPagesAtom, addPageAtom, builderDataAtom, removePageAtom, reorderPagesAtom,
-  viewingSharedBookAtom, sharedBookInfoAtom, fullscreenMediaAtom
+  viewingSharedBookAtom, sharedBookInfoAtom, fullscreenMediaAtom, fullscreenPageAtom
 } from "../store/atoms";
 import { EditorCanvas } from "./editor/EditorCanvas";
 import { BookBuilderModal } from "./BookBuilderModal";
 import { ResetBookModal } from "./ResetBookModal";
 import { BookLibraryModal } from "./BookLibraryModal";
 import { FullscreenMediaModal, FullscreenMediaButton } from "./FullscreenMediaModal";
+import { FullscreenPageModal, FullscreenPageButton } from "./FullscreenPageModal";
+import { DisplaySettingsPanel } from "./DisplaySettingsPanel";
 import { PageNavigationFooter } from "./PageNavigationFooter";
 import { useAuth } from "../hooks/useAuth";
 import { useBookSave } from "../hooks/useBookSave";
@@ -36,6 +38,7 @@ export const UI = () => {
   const [viewingShared] = useAtom(viewingSharedBookAtom);
   const [sharedBookInfo] = useAtom(sharedBookInfoAtom);
   const [fullscreenMedia, setFullscreenMedia] = useAtom(fullscreenMediaAtom);
+  const [fullscreenPage, setFullscreenPage] = useAtom(fullscreenPageAtom);
   const [language, setLanguage] = useAtom(languageAtom);
 
   // Local State
@@ -80,6 +83,29 @@ export const UI = () => {
       return { type: 'video', metadata: firstMedia.videoMetadata, embedUrl: firstMedia.videoMetadata?.embedUrl };
     }
     return null;
+  }, [pages, page]);
+
+  // Get current page texture for fullscreen viewing
+  const currentPageData = useMemo(() => {
+    if (!pages || pages.length === 0) return null;
+
+    let pageData = null;
+    let pageInfo = '';
+
+    if (page === 0) {
+      pageData = pages[0]?.front;
+      pageInfo = 'Cover';
+    } else if (page === pages.length) {
+      pageData = pages[pages.length - 1]?.back;
+      pageInfo = 'Back Cover';
+    } else if (page > 0 && page < pages.length) {
+      pageData = pages[page]?.front;
+      pageInfo = `Page ${page}`;
+    }
+
+    if (!pageData?.texture) return null;
+
+    return { texture: pageData.texture, pageInfo };
   }, [pages, page]);
 
   // Mute state
@@ -216,14 +242,15 @@ export const UI = () => {
           </div>
         )}
 
-        {/* Language & Mute */}
-        <div className="flex gap-2">
+        {/* Language, Mute & Display Settings - available to all users */}
+        <div className="flex gap-2 items-center">
           <button className="bg-white/80 hover:bg-white backdrop-blur-sm text-gray-700 px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all" onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}>
             {language === 'en' ? 'עב' : 'En'}
           </button>
           <button className={`backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all ${muted ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-white/80 hover:bg-white text-gray-700'}`} onClick={() => setMuted(!muted)} title={muted ? 'Unmute sounds' : 'Mute sounds'}>
             {muted ? '🔇' : '🔊'}
           </button>
+          <DisplaySettingsPanel />
         </div>
 
         {/* Menu */}
@@ -299,9 +326,13 @@ export const UI = () => {
       <ResetBookModal isOpen={resetOpen} onClose={() => setResetOpen(false)} />
       <BookLibraryModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} user={user} onLoadBook={handleLoadBook} currentBookId={currentBookId} />
 
-      {/* Fullscreen Media */}
+      {/* Fullscreen Media (video) */}
       <FullscreenMediaButton media={currentPageMedia} onClick={() => setFullscreenMedia(currentPageMedia)} />
       <FullscreenMediaModal media={fullscreenMedia} onClose={() => setFullscreenMedia(null)} />
+
+      {/* Fullscreen Page - available to all users */}
+      <FullscreenPageButton onClick={() => setFullscreenPage(currentPageData)} disabled={!currentPageData} />
+      <FullscreenPageModal page={fullscreenPage} onClose={() => setFullscreenPage(null)} />
 
       {/* Page Navigation */}
       <PageNavigationFooter pages={pages} currentPage={page} onPageChange={setPage} onDeletePage={handleDeletePage} onReorder={handleReorder} user={user} viewingShared={viewingShared} translations={t} />

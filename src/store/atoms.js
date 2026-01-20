@@ -186,3 +186,12 @@ export const sharedBookInfoAtom = atom(null); // { id, title, ownerName }
 
 // Fullscreen media viewer
 export const fullscreenMediaAtom = atom(null); // { type: 'video'|'image', url, embedUrl }
+
+// Display settings (available to all users)
+export const displaySettingsAtom = atomWithStorage('display-settings', {
+  brightness: 1.0,    // 0.5 to 2.0
+  wobble: 0.2,        // 0 to 1 (0 = no wobble, 1 = full wobble)
+});
+
+// Fullscreen page viewer
+export const fullscreenPageAtom = atom(null); // { texture, pageInfo }
