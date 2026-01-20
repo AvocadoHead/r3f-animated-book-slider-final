@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useAtom } from 'jotai';
-// FIX: Path adjusted for src/components/ResetBookModal.jsx
-import { resetBookAtom } from '../store/atoms';
+import { resetBookAtom, builderDataAtom } from '../store/atoms';
+import { DEFAULT_BUILDER_STATE } from '../config/pageConfig';
 
 export const ResetBookModal = ({ isOpen, onClose }) => {
   const [, resetBook] = useAtom(resetBookAtom);
+  const [, setBuilderData] = useAtom(builderDataAtom);
   const [coverUrl, setCoverUrl] = useState('');
 
   if (!isOpen) return null;
@@ -12,6 +13,8 @@ export const ResetBookModal = ({ isOpen, onClose }) => {
   const handleReset = () => {
     if (confirm("Are you sure? This will delete all current pages.")) {
       resetBook({ coverUrl: coverUrl || null });
+      // Clear builder data including title for new book
+      setBuilderData(DEFAULT_BUILDER_STATE);
       setCoverUrl('');
       onClose();
     }

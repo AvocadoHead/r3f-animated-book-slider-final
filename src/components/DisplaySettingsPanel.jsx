@@ -27,11 +27,11 @@ export const DisplaySettingsPanel = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute top-12 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-4 min-w-[220px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-12 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-4 min-w-[240px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Display Settings</h3>
 
           {/* Brightness */}
-          <div className="mb-4">
+          <div className="mb-3">
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs text-gray-500">Brightness</label>
               <span className="text-xs text-gray-400">{Math.round(displaySettings.brightness * 100)}%</span>
@@ -48,6 +48,27 @@ export const DisplaySettingsPanel = () => {
             <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
               <span>Dim</span>
               <span>Bright</span>
+            </div>
+          </div>
+
+          {/* Contrast */}
+          <div className="mb-3">
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs text-gray-500">Contrast</label>
+              <span className="text-xs text-gray-400">{Math.round(displaySettings.contrast * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={displaySettings.contrast}
+              onChange={(e) => updateSetting('contrast', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+            />
+            <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+              <span>Low</span>
+              <span>High</span>
             </div>
           </div>
 
@@ -74,7 +95,7 @@ export const DisplaySettingsPanel = () => {
 
           {/* Reset button */}
           <button
-            onClick={() => setDisplaySettings({ brightness: 1.0, wobble: 0.2 })}
+            onClick={() => setDisplaySettings({ brightness: 1.0, contrast: 1.0, wobble: 0.2 })}
             className="w-full text-xs text-gray-500 hover:text-purple-600 py-1 transition-colors"
           >
             Reset to defaults

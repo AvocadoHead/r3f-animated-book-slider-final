@@ -85,27 +85,42 @@ export const UI = () => {
     return null;
   }, [pages, page]);
 
-  // Get current page texture for fullscreen viewing
+  // Get current visible pages for fullscreen viewing (spread view)
   const currentPageData = useMemo(() => {
     if (!pages || pages.length === 0) return null;
 
-    let pageData = null;
-    let pageInfo = '';
-
+    // Book closed on cover
     if (page === 0) {
-      pageData = pages[0]?.front;
-      pageInfo = 'Cover';
-    } else if (page === pages.length) {
-      pageData = pages[pages.length - 1]?.back;
-      pageInfo = 'Back Cover';
-    } else if (page > 0 && page < pages.length) {
-      pageData = pages[page]?.front;
-      pageInfo = `Page ${page}`;
+      const frontCover = pages[0]?.front;
+      if (!frontCover?.texture) return null;
+      return {
+        type: 'single',
+        texture: frontCover.texture,
+        pageInfo: 'Cover'
+      };
     }
 
-    if (!pageData?.texture) return null;
+    // Book closed on back cover
+    if (page === pages.length) {
+      const backCover = pages[pages.length - 1]?.back;
+      if (!backCover?.texture) return null;
+      return {
+        type: 'single',
+        texture: backCover.texture,
+        pageInfo: 'Back Cover'
+      };
+    }
 
-    return { texture: pageData.texture, pageInfo };
+    // Book open - show spread (left page + right page)
+    const leftPage = pages[page - 1]?.back;  // Back of previous leaf
+    const rightPage = pages[page]?.front;    // Front of current leaf
+
+    return {
+      type: 'spread',
+      leftTexture: leftPage?.texture || null,
+      rightTexture: rightPage?.texture || null,
+      pageInfo: `Pages ${page * 2 - 1} - ${page * 2}`
+    };
   }, [pages, page]);
 
   // Mute state

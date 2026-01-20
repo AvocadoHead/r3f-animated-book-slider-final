@@ -1,6 +1,9 @@
 export const FullscreenPageModal = ({ page, onClose }) => {
   if (!page) return null;
 
+  const isSingle = page.type === 'single';
+  const isSpread = page.type === 'spread';
+
   return (
     <div
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center pointer-events-auto"
@@ -19,20 +22,62 @@ export const FullscreenPageModal = ({ page, onClose }) => {
         Click anywhere to close
       </div>
 
-      {/* Page image */}
-      <div
-        className="max-w-[95vw] max-h-[95vh] flex items-center justify-center"
-        onClick={e => e.stopPropagation()}
-      >
-        {page.texture && (
+      {/* Single page (cover or back cover) */}
+      {isSingle && page.texture && (
+        <div
+          className="max-w-[95vw] max-h-[95vh] flex items-center justify-center"
+          onClick={e => e.stopPropagation()}
+        >
           <img
             src={page.texture}
             alt={page.pageInfo || 'Page'}
             className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
             style={{ backgroundColor: '#f5f5f5' }}
           />
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Spread view (two pages side by side) */}
+      {isSpread && (
+        <div
+          className="max-w-[95vw] max-h-[95vh] flex items-center justify-center gap-1"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Left page */}
+          {page.leftTexture ? (
+            <img
+              src={page.leftTexture}
+              alt="Left page"
+              className="max-h-[85vh] object-contain rounded-l-lg shadow-2xl"
+              style={{ backgroundColor: '#f5f5f5', maxWidth: '47vw' }}
+            />
+          ) : (
+            <div
+              className="max-h-[85vh] aspect-[3/4] bg-gray-100 rounded-l-lg shadow-2xl flex items-center justify-center"
+              style={{ maxWidth: '47vw', minWidth: '200px', minHeight: '300px' }}
+            >
+              <span className="text-gray-400">Empty Page</span>
+            </div>
+          )}
+
+          {/* Right page */}
+          {page.rightTexture ? (
+            <img
+              src={page.rightTexture}
+              alt="Right page"
+              className="max-h-[85vh] object-contain rounded-r-lg shadow-2xl"
+              style={{ backgroundColor: '#f5f5f5', maxWidth: '47vw' }}
+            />
+          ) : (
+            <div
+              className="max-h-[85vh] aspect-[3/4] bg-gray-100 rounded-r-lg shadow-2xl flex items-center justify-center"
+              style={{ maxWidth: '47vw', minWidth: '200px', minHeight: '300px' }}
+            >
+              <span className="text-gray-400">Empty Page</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Page info */}
       {page.pageInfo && (

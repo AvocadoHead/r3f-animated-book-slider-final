@@ -24,12 +24,13 @@ export const useBookSave = (user, pages, title, currentBookId, setCurrentBookId,
     }
   }, [pages, title, user, viewingShared, getContentKey]);
 
-  // Auto-save with debounce (15 seconds)
+  // Auto-save with debounce (15 seconds) - ONLY for books that already exist
+  // New books require explicit save action to prevent creating untitled books
   useEffect(() => {
-    if (!user || viewingShared) return;
+    if (!user || viewingShared || !currentBookId) return;
     const timer = setTimeout(() => handleSave(false), 15000);
     return () => clearTimeout(timer);
-  }, [pages, user, viewingShared]);
+  }, [pages, user, viewingShared, currentBookId]);
 
   const handleSave = useCallback(async (force = false) => {
     if (!user || viewingShared) return null;

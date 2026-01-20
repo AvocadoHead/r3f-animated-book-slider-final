@@ -210,8 +210,12 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       setProgress(100);
       setStatus('✅ Done!');
 
-      // Clear cache on successful build
-      setBuilderData(DEFAULT_BUILDER_STATE);
+      // Clear URLs but KEEP the title for when user saves
+      // Title persists so it can be used as the book name when saving
+      setBuilderData(prev => ({
+        ...DEFAULT_BUILDER_STATE,
+        title: prev.title // Preserve title for save operation
+      }));
       setUrlCount(0);
 
       setTimeout(() => {
@@ -227,8 +231,11 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       setProgress(0);
       setIsProcessing(false);
 
-      // Clear cache on error to prevent retrying with bad data
-      setBuilderData(DEFAULT_BUILDER_STATE);
+      // Clear URLs but keep title on error
+      setBuilderData(prev => ({
+        ...DEFAULT_BUILDER_STATE,
+        title: prev.title
+      }));
       setUrlCount(0);
     } finally {
       fCanvas.dispose();

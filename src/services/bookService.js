@@ -69,11 +69,16 @@ export const fetchSharedBook = async (bookId) => {
  * Create a new book
  */
 export const createBook = async (userId, { title, content, coverUrl }) => {
+  // Use provided title, or generate one with timestamp for uniqueness
+  const bookTitle = title && title.trim()
+    ? title.trim()
+    : `Book ${new Date().toLocaleDateString()}`;
+
   const { data, error } = await supabase
     .from('books')
     .insert({
       user_id: userId,
-      title: title || 'My 3D Book',
+      title: bookTitle,
       content: content || [],
       cover_url: coverUrl || null,
       updated_at: new Date().toISOString()

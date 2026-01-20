@@ -1,11 +1,13 @@
 import { Canvas } from "@react-three/fiber";
 import { useState, useMemo } from "react";
+import { useAtom } from "jotai";
 import { Experience } from "./components/Experience";
 import { UI } from "./components/UI";
 import { DefaultBookLoader } from "./components/DefaultBookLoader";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { AuthCallback } from "./components/AuthCallback";
 import { SharedBookLoader } from "./components/SharedBookLoader";
+import { displaySettingsAtom } from "./store/atoms";
 
 // Simple path parser
 const getRouteInfo = () => {
@@ -29,6 +31,7 @@ const getRouteInfo = () => {
 function App() {
   const [loading, setLoading] = useState(true);
   const routeInfo = useMemo(() => getRouteInfo(), []);
+  const [displaySettings] = useAtom(displaySettingsAtom);
 
   // Handle auth callback
   if (routeInfo.route === 'auth-callback') {
@@ -36,6 +39,11 @@ function App() {
   }
 
   const isSharedBook = routeInfo.route === 'shared-book';
+
+  // Build CSS filter for contrast adjustment
+  const canvasFilter = displaySettings.contrast !== 1.0
+    ? `contrast(${displaySettings.contrast})`
+    : 'none';
 
   return (
     <>
@@ -58,7 +66,8 @@ function App() {
           left: 0,
           width: '100%',
           height: '100%',
-          zIndex: 0
+          zIndex: 0,
+          filter: canvasFilter
         }}
       >
         <Experience />
