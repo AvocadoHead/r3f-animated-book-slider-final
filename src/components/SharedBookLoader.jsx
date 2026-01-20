@@ -10,6 +10,8 @@ export const SharedBookLoader = ({ bookId }) => {
   const [, setSharedBookInfo] = useAtom(sharedBookInfoAtom);
   const [, setCurrentPage] = useAtom(currentPageAtom);
   const [loadingStatus, setLoadingStatus] = useState('Loading...');
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
   const hasLoaded = useRef(false);
 
   useEffect(() => {
@@ -19,43 +21,59 @@ export const SharedBookLoader = ({ bookId }) => {
     const loadSharedBook = async () => {
       console.log('Loading shared book:', bookId);
       setLoadingStatus('Fetching book...');
+      setProgress(5);
 
-      const { data, error } = await supabase
-        .from('books')
-        .select('id, title, content, user_id')
-        .eq('id', bookId)
-        .single();
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('books')
+          .select('id, title, content, user_id')
+          .eq('id', bookId)
+          .single();
 
-      if (error || !data) {
-        console.error('Failed to load shared book:', error);
-        window.location.href = '/';
-        return;
-      }
-
-      // Reconstruct textures from fabricJSON if needed
-      if (data.content && data.content.length > 0) {
-        setLoadingStatus('Reconstructing pages...');
-
-        try {
-          const pagesWithTextures = await reconstructBookTextures(data.content);
-          setBookPages(pagesWithTextures);
-          setCurrentPage(0);
-        } catch (err) {
-          console.error('Failed to reconstruct textures:', err);
-          setBookPages(data.content);
-          setCurrentPage(0);
+        if (fetchError || !data) {
+          console.error('Failed to load shared book:', fetchError);
+          setError('Book not found');
+          setTimeout(() => window.location.href = '/', 2000);
+          return;
         }
+
+        setProgress(15);
+
+        // Validate content is an array
+        const content = Array.isArray(data.content) ? data.content : [];
+
+        if (content.length > 0) {
+          setLoadingStatus('Reconstructing pages...');
+
+          try {
+            const pagesWithTextures = await reconstructBookTextures(content, (p) => {
+              // Map progress from 15-95%
+              setProgress(15 + Math.round(p * 0.8));
+            });
+            setBookPages(pagesWithTextures);
+          } catch (err) {
+            console.error('Failed to reconstruct textures:', err);
+            // Try to use content as-is
+            setBookPages(content);
+          }
+        }
+
+        setCurrentPage(0);
+        setViewingShared(true);
+        setSharedBookInfo({
+          id: data.id,
+          title: data.title || 'Shared Book',
+          ownerId: data.user_id
+        });
+
+        setProgress(100);
+        setLoadingStatus('');
+        console.log('Shared book loaded:', data.title);
+      } catch (err) {
+        console.error('Error loading shared book:', err);
+        setError('Failed to load book');
+        setTimeout(() => window.location.href = '/', 2000);
       }
-
-      setViewingShared(true);
-      setSharedBookInfo({
-        id: data.id,
-        title: data.title || 'Shared Book',
-        ownerId: data.user_id
-      });
-
-      setLoadingStatus('');
-      console.log('Shared book loaded:', data.title);
     };
 
     loadSharedBook();
@@ -67,12 +85,29 @@ export const SharedBookLoader = ({ bookId }) => {
   }, [bookId, setBookPages, setViewingShared, setSharedBookInfo, setCurrentPage]);
 
   // Show loading indicator while reconstructing
-  if (loadingStatus) {
+  if (loadingStatus || error) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 pointer-events-none">
-        <div className="bg-white rounded-xl p-6 shadow-2xl text-center">
-          <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-gray-700">{loadingStatus}</p>
+        <div className="bg-white rounded-xl p-6 shadow-2xl text-center min-w-[250px]">
+          {error ? (
+            <>
+              <div className="text-red-500 text-2xl mb-2">⚠️</div>
+              <p className="text-red-600 font-medium">{error}</p>
+              <p className="text-gray-500 text-sm mt-2">Redirecting...</p>
+            </>
+          ) : (
+            <>
+              <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-gray-700 mb-2">{loadingStatus}</p>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-purple-600 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-gray-400 text-xs mt-1">{progress}%</p>
+            </>
+          )}
         </div>
       </div>
     );

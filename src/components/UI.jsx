@@ -17,6 +17,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useBookSave } from "../hooks/useBookSave";
 import { AuthButton } from "./AuthButton";
 import { fetchBook, signInWithGoogle, signOut } from "../services/bookService";
+import { reconstructBookTextures } from "../utils/textureReconstructor";
 
 const translations = {
   en: { editPage: 'Edit Page', addPage: 'Add Page', cover: 'Cover', page: 'Page', backCover: 'Back Cover', bookBuilder: 'Book Builder', newBook: 'New Book', login: 'Sign In', logout: 'Sign Out' },
@@ -49,6 +50,8 @@ export const UI = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState('');
+  const [loadingBook, setLoadingBook] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('');
 
   const videoRef = useRef(null);
   const t = translations[language];
@@ -151,17 +154,36 @@ export const UI = () => {
 
   // Library Handler
   const handleLoadBook = async (bookId) => {
+    setLoadingBook(true);
+    setLoadingStatus('Fetching book...');
+    setLibraryOpen(false);
+    setMenuOpen(false);
+
     try {
       const data = await fetchBook(bookId);
-      if (data) {
-        setBookPages(data.content);
+      if (data && data.content) {
+        // Ensure content is an array
+        const content = Array.isArray(data.content) ? data.content : [];
+
+        if (content.length > 0) {
+          setLoadingStatus('Reconstructing pages...');
+          // Reconstruct textures from fabricJSON (same as shared book loader)
+          const pagesWithTextures = await reconstructBookTextures(content);
+          setBookPages(pagesWithTextures);
+        } else {
+          setBookPages(content);
+        }
+
         setCurrentBookId(data.id);
-        setLibraryOpen(false);
-        setMenuOpen(false);
+        // Update builder title to match loaded book
+        setBuilderData(prev => ({ ...prev, title: data.title || '' }));
       }
     } catch (err) {
       console.error('Failed to load book:', err);
-      alert('Failed to load book');
+      alert('Failed to load book: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoadingBook(false);
+      setLoadingStatus('');
     }
   };
 
@@ -331,6 +353,16 @@ export const UI = () => {
           </div>
         )}
       </div>
+
+      {/* Loading Overlay */}
+      {loadingBook && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 pointer-events-auto">
+          <div className="bg-white rounded-xl p-6 shadow-2xl text-center">
+            <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-gray-700">{loadingStatus || 'Loading...'}</p>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {editorOpen && editingPage && (
