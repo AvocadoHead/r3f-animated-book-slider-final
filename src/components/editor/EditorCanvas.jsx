@@ -7,6 +7,7 @@ import { FrameOverlay } from './FrameOverlay';
 import { createVideoMetadata, createVideoPlaceholder, isVideoUrl } from '../../utils/videoHelpers';
 import { normalizeImageUrl } from '../../utils/imageHelpers';
 import { PAGE_DIMENSIONS } from '../../config/pageConfig';
+import { importGoogleDocToCanvas } from '../../services/googleDocsService';
 
 const FONTS = ['Heebo', 'Rubik', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
 
@@ -301,72 +302,37 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
   const importGoogleDocText = useCallback(async () => {
     const url = prompt(
       "Enter Google Doc URL:\n\n" +
-      "Supported formats:\n" +
-      "• Published Doc: docs.google.com/document/d/.../pub\n" +
-      "• Shared Doc: docs.google.com/document/d/.../edit\n" +
-      "• Drive text file: drive.google.com/file/d/..."
+      "The document must be shared as 'Anyone with the link can view'\n\n" +
+      "Example: docs.google.com/document/d/abc123.../edit"
     );
 
     if (!url) return;
 
     setIsLoading(true);
-    setStatus('Fetching document...');
 
     try {
-      // Extract doc ID
-      const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (!docIdMatch) {
-        throw new Error('Could not extract document ID from URL');
-      }
+      const result = await importGoogleDocToCanvas(
+        fabric,
+        fabricCanvasRef.current,
+        url,
+        {
+          maxHeight: PAGE_DIMENSIONS.height - 100,
+          onProgress: (msg) => setStatus(msg)
+        }
+      );
 
-      const docId = docIdMatch[1];
-
-      // Try to fetch as published HTML or plain text export
-      const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
-
-      // Use CORS proxy for cross-origin request
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(exportUrl)}`;
-
-      const response = await fetch(proxyUrl);
-      if (!response.ok) {
-        throw new Error('Could not fetch document. Make sure it\'s publicly shared.');
-      }
-
-      let text = await response.text();
-
-      // Clean up the text (remove excessive whitespace)
-      text = text.trim().substring(0, 2000); // Limit length for page
-
-      if (!text) {
-        throw new Error('Document appears to be empty');
-      }
-
-      // Add as text object
-      const textObj = new fabric.IText(text, {
-        left: 50,
-        top: 100,
-        fontSize: 18,
-        fontFamily: fontFamily,
-        fill: '#333333',
-        width: PAGE_DIMENSIONS.width - 100,
-        lineHeight: 1.4,
-      });
-
-      fabricCanvasRef.current.add(textObj);
-      fabricCanvasRef.current.setActiveObject(textObj);
       saveHistory();
-
       setIsLoading(false);
-      setStatus('Document imported!');
-      setTimeout(() => setStatus(''), 1500);
+      setStatus(`Imported "${result.title}" (${result.objectCount} elements)`);
+      setTimeout(() => setStatus(''), 3000);
     } catch (err) {
       console.error('Google Doc import failed:', err);
       setIsLoading(false);
-      setStatus('Import failed - check sharing settings');
+      setStatus('Import failed');
       setTimeout(() => setStatus(''), 3000);
-      alert('Could not import document.\n\nMake sure:\n1. The document is publicly shared\n2. Anyone with the link can view it');
+      alert(`Could not import document.\n\n${err.message}\n\nMake sure the document is shared as "Anyone with the link can view".`);
     }
-  }, [fontFamily]);
+  }, []);
 
   const copyObject = useCallback(async () => {
     const active = fabricCanvasRef.current?.getActiveObject();
