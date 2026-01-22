@@ -175,8 +175,18 @@ export const UI = () => {
         }
 
         setCurrentBookId(data.id);
-        // Update builder title to match loaded book
-        setBuilderData(prev => ({ ...prev, title: data.title || '' }));
+        
+        // --- FIX: LOAD METADATA BACK INTO BUILDER STATE ---
+        // This ensures subsequent saves include the coverUrl and Title
+        setBuilderData(prev => ({ 
+            ...prev, 
+            title: data.title || '',
+            coverUrl: data.cover_image_url || '',
+            // If you have description in your atom/DB, add it here:
+            // description: data.description || '' 
+        }));
+        // --------------------------------------------------
+
       }
     } catch (err) {
       console.error('Failed to load book:', err);
