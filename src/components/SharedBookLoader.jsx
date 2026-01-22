@@ -39,6 +39,22 @@ export const SharedBookLoader = ({ bookId }) => {
 
         setProgress(15);
 
+        // Debug logging
+        console.log('Shared book data:', {
+          id: data.id,
+          title: data.title,
+          hasContent: !!data.content,
+          contentType: typeof data.content,
+          contentIsArray: Array.isArray(data.content),
+          contentLength: Array.isArray(data.content) ? data.content.length : 'N/A',
+          firstPage: data.content?.[0] ? {
+            hasFront: !!data.content[0].front,
+            hasBack: !!data.content[0].back,
+            frontHasTexture: !!data.content[0].front?.texture,
+            frontHasFabric: !!data.content[0].front?.fabricJSON
+          } : 'no pages'
+        });
+
         // Validate content is an array
         const content = Array.isArray(data.content) ? data.content : [];
 

@@ -248,6 +248,17 @@ export const saveBook = async (userId, bookId, { pages, title }) => {
   const lightweightContent = preparePagesForStorage(pages);
   const coverUrl = extractCoverUrl(pages);
 
+  // Debug logging
+  console.log('Saving book:', {
+    userId,
+    bookId,
+    title,
+    pageCount: pages?.length,
+    contentPageCount: lightweightContent?.length,
+    firstPageHasContent: lightweightContent?.[0]?.front?.texture ? 'has texture' :
+                         lightweightContent?.[0]?.front?.fabricJSON ? 'has fabricJSON' : 'empty'
+  });
+
   if (bookId) {
     // Update existing - pass userId for RLS compliance
     return updateBook(userId, bookId, {
