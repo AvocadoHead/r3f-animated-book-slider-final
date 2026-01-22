@@ -1,4 +1,4 @@
-import { Canvas } from "@react-three/fiber";
+himport { Canvas } from "@react-three/fiber";
 import { useState, useMemo } from "react";
 import { useAtom } from "jotai";
 import { Experience } from "./components/Experience";
@@ -26,7 +26,7 @@ const getRouteInfo = () => {
   }
 
   // /book/:id (path-based route)
-  const bookMatch = path.match(/^\\/book\\/([a-zA-Z0-9-]+)$/);
+   const bookMatch = path.match(/^\/book\/([a-zA-Z0-9-]+)$/);
   if (bookMatch) {
     return { route: 'shared-book', bookId: bookMatch[1] };
   }
