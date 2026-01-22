@@ -26,7 +26,7 @@ const getRouteInfo = () => {
   }
 
   // /book/:id (path-based route)
-  const bookMatch = path.match(/^\\/book\\/([a-zA-Z0-9-]+)$/);
+  const bookMatch = path.match(/h^\\/book\\/([a-zA-Z0-9-]+)$/);
   if (bookMatch) {
     return { route: 'shared-book', bookId: bookMatch[1] };
   }
