@@ -97,7 +97,11 @@ export const createBook = async (userId, { title, content, coverUrl }) => {
 /**
  * Update an existing book
  */
-export const updateBook = async (bookId, { title, content, coverUrl }) => {
+export const updateBook = async (userId, bookId, { title, content, coverUrl }) => {
+  if (!userId || !bookId) {
+    throw new Error('userId and bookId are required for update');
+  }
+
   const payload = {
     updated_at: new Date().toISOString()
   };
@@ -106,19 +110,25 @@ export const updateBook = async (bookId, { title, content, coverUrl }) => {
   if (content !== undefined) payload.content = content;
   if (coverUrl !== undefined) payload.cover_url = coverUrl;
 
+  // Include user_id in query to satisfy RLS and ensure ownership
   const { data, error } = await supabase
     .from('books')
     .update(payload)
     .eq('id', bookId)
-    .select()
-    .single();
+    .eq('user_id', userId)
+    .select();
 
   if (error) {
     console.error('Error updating book:', error);
     throw error;
   }
 
-  return data;
+  // Check if any rows were updated
+  if (!data || data.length === 0) {
+    throw new Error('Book not found or you do not have permission to update it');
+  }
+
+  return data[0]; // Return first (and only) updated row
 };
 
 /**
@@ -231,12 +241,16 @@ export const extractCoverUrl = (pages) => {
  * Save book with optimized content (main save function)
  */
 export const saveBook = async (userId, bookId, { pages, title }) => {
+  if (!userId) {
+    throw new Error('User must be logged in to save');
+  }
+
   const lightweightContent = preparePagesForStorage(pages);
   const coverUrl = extractCoverUrl(pages);
 
   if (bookId) {
-    // Update existing
-    return updateBook(bookId, {
+    // Update existing - pass userId for RLS compliance
+    return updateBook(userId, bookId, {
       title,
       content: lightweightContent,
       coverUrl
