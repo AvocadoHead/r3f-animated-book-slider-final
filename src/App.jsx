@@ -33,8 +33,8 @@ const getRouteInfo = () => {
 
   // Default home
   return { route: 'home' };
-};
-};
+}; 
+// ^^^ The extra }; was here. It is now gone.
 
 function App() {
   const [loading, setLoading] = useState(true);
