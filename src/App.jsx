@@ -1,4 +1,4 @@
-himport { Canvas } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { useState, useMemo } from "react";
 import { useAtom } from "jotai";
 import { Experience } from "./components/Experience";
