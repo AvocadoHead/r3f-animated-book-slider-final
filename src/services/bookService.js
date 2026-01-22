@@ -169,22 +169,50 @@ export const extractUrlsFromFabricJSON = (fabricJSON) => {
 };
 
 /**
- * Prepare pages for storage (lightweight version without base64 textures)
+ * Prepare a page side for storage
+ * - If fabricJSON exists and has content, save it (can reconstruct texture later)
+ * - If no fabricJSON but texture exists, save the texture directly
+ */
+const prepareSideForStorage = (side) => {
+  if (!side) return { type: 'page', fabricJSON: null, texture: null };
+
+  const hasFabricContent = side.fabricJSON?.objects?.length > 0;
+
+  if (hasFabricContent) {
+    // Has fabricJSON with objects - save fabricJSON, can reconstruct texture
+    return {
+      fabricJSON: side.fabricJSON,
+      type: side.type || 'page',
+      urls: extractUrlsFromFabricJSON(side.fabricJSON)
+    };
+  } else if (side.texture) {
+    // No fabricJSON but has texture - save the texture directly
+    return {
+      texture: side.texture,
+      type: side.type || 'page',
+      fabricJSON: null
+    };
+  } else {
+    // Nothing to save
+    return {
+      type: side.type || 'page',
+      fabricJSON: null,
+      texture: null
+    };
+  }
+};
+
+/**
+ * Prepare pages for storage
  */
 export const preparePagesForStorage = (pages) => {
+  if (!Array.isArray(pages)) return [];
+
   return pages.map(page => ({
     id: page.id,
     pageNumber: page.pageNumber,
-    front: {
-      fabricJSON: page.front?.fabricJSON || null,
-      type: page.front?.type || 'page',
-      urls: extractUrlsFromFabricJSON(page.front?.fabricJSON)
-    },
-    back: {
-      fabricJSON: page.back?.fabricJSON || null,
-      type: page.back?.type || 'page',
-      urls: extractUrlsFromFabricJSON(page.back?.fabricJSON)
-    }
+    front: prepareSideForStorage(page.front),
+    back: prepareSideForStorage(page.back)
   }));
 };
 

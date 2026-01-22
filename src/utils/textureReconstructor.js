@@ -98,22 +98,37 @@ export const reconstructBookTextures = async (pages, onProgress = null) => {
     const page = pages[i];
 
     try {
-      // Check if texture already exists and is valid (data URL or external URL)
-      const hasFrontTexture = page.front?.texture &&
-        (page.front.texture.startsWith('data:') || page.front.texture.startsWith('http'));
-      const hasBackTexture = page.back?.texture &&
-        (page.back.texture.startsWith('data:') || page.back.texture.startsWith('http'));
+      // Check if texture already exists and is valid
+      const isValidTexture = (tex) => tex && typeof tex === 'string' &&
+        (tex.startsWith('data:') || tex.startsWith('http'));
 
-      // Reconstruct front texture if needed
-      const frontTexture = hasFrontTexture
-        ? page.front.texture
-        : await reconstructTextureFromFabricJSON(page.front?.fabricJSON);
+      const hasFrontTexture = isValidTexture(page.front?.texture);
+      const hasBackTexture = isValidTexture(page.back?.texture);
+
+      // Check if fabricJSON has actual content worth reconstructing
+      const hasFrontFabric = page.front?.fabricJSON?.objects?.length > 0;
+      const hasBackFabric = page.back?.fabricJSON?.objects?.length > 0;
+
+      // Reconstruct front texture: use existing texture, or reconstruct from fabricJSON, or blank
+      let frontTexture;
+      if (hasFrontTexture) {
+        frontTexture = page.front.texture;
+      } else if (hasFrontFabric) {
+        frontTexture = await reconstructTextureFromFabricJSON(page.front.fabricJSON);
+      } else {
+        frontTexture = createBlankTexture();
+      }
       updateProgress();
 
-      // Reconstruct back texture if needed
-      const backTexture = hasBackTexture
-        ? page.back.texture
-        : await reconstructTextureFromFabricJSON(page.back?.fabricJSON);
+      // Reconstruct back texture: use existing texture, or reconstruct from fabricJSON, or blank
+      let backTexture;
+      if (hasBackTexture) {
+        backTexture = page.back.texture;
+      } else if (hasBackFabric) {
+        backTexture = await reconstructTextureFromFabricJSON(page.back.fabricJSON);
+      } else {
+        backTexture = createBlankTexture();
+      }
       updateProgress();
 
       reconstructedPages.push({
