@@ -32,31 +32,38 @@ export const SharedBookLoader = ({ bookId }) => {
 
         if (fetchError || !data) {
           console.error('Failed to load shared book:', fetchError);
-          setError('Book not found');
-          setTimeout(() => window.location.href = '/', 2000);
+          setError('Book not found or private');
+          // Allow slightly longer time to see the error before redirect
+          setTimeout(() => window.location.href = '/', 3000);
           return;
         }
 
         setProgress(15);
 
-        // Debug logging
-        console.log('Shared book data:', {
-          id: data.id,
-          title: data.title,
-          hasContent: !!data.content,
-          contentType: typeof data.content,
-          contentIsArray: Array.isArray(data.content),
-          contentLength: Array.isArray(data.content) ? data.content.length : 'N/A',
-          firstPage: data.content?.[0] ? {
-            hasFront: !!data.content[0].front,
-            hasBack: !!data.content[0].back,
-            frontHasTexture: !!data.content[0].front?.texture,
-            frontHasFabric: !!data.content[0].front?.fabricJSON
-          } : 'no pages'
-        });
+        // --- FIX STARTS HERE ---
+        // 1. Handle parsing if content is a JSON string (Text column)
+        let contentRaw = data.content;
+        
+        if (typeof contentRaw === 'string') {
+          try {
+             // Clean up potentially escaped strings just in case, though JSON.parse usually handles it
+             contentRaw = JSON.parse(contentRaw);
+          } catch (e) {
+             console.error("JSON Parse failed:", e);
+             contentRaw = []; 
+          }
+        }
 
-        // Validate content is an array
-        const content = Array.isArray(data.content) ? data.content : [];
+        // 2. Now validate it is an array
+        const content = Array.isArray(contentRaw) ? contentRaw : [];
+        // --- FIX ENDS HERE ---
+
+        // Debug logging
+        console.log('Shared book parsed data:', {
+            id: data.id,
+            title: data.title,
+            contentLength: content.length
+        });
 
         if (content.length > 0) {
           setLoadingStatus('Reconstructing pages...');
@@ -104,12 +111,12 @@ export const SharedBookLoader = ({ bookId }) => {
   if (loadingStatus || error) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 pointer-events-none">
-        <div className="bg-white rounded-xl p-6 shadow-2xl text-center min-w-[250px]">
+        <div className="bg-white rounded-xl p-6 shadow-2xl text-center min-w-[250px] pointer-events-auto">
           {error ? (
             <>
               <div className="text-red-500 text-2xl mb-2">⚠️</div>
               <p className="text-red-600 font-medium">{error}</p>
-              <p className="text-gray-500 text-sm mt-2">Redirecting...</p>
+              <p className="text-gray-500 text-sm mt-2">Redirecting to home...</p>
             </>
           ) : (
             <>
