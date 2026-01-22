@@ -210,13 +210,15 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       setProgress(100);
       setStatus('✅ Done!');
 
-      // Clear URLs but KEEP the title for when user saves
-      // Title persists so it can be used as the book name when saving
+      // --- FIX: DO NOT WIPE THE DATA ---
+      // We only clear the URLs so the input box is empty,
+      // but we keep Title, CoverURL, and Description so the Save button can access them.
       setBuilderData(prev => ({
-        ...DEFAULT_BUILDER_STATE,
-        title: prev.title // Preserve title for save operation
+        ...prev,       // Keep existing items (title, coverUrl, itemsPerPage)
+        urls: '',      // Only clear the raw URL list
       }));
       setUrlCount(0);
+      // --------------------------------
 
       setTimeout(() => {
         onClose();
@@ -230,13 +232,7 @@ export const BookBuilderModal = ({ isOpen, onClose }) => {
       setStatus('❌ Error: ' + (e.message || 'Unknown error'));
       setProgress(0);
       setIsProcessing(false);
-
-      // Clear URLs but keep title on error
-      setBuilderData(prev => ({
-        ...DEFAULT_BUILDER_STATE,
-        title: prev.title
-      }));
-      setUrlCount(0);
+      // Don't wipe data on error either
     } finally {
       fCanvas.dispose();
     }
