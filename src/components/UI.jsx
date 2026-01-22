@@ -161,32 +161,41 @@ export const UI = () => {
 
     try {
       const data = await fetchBook(bookId);
-      if (data && data.content) {
-        // Ensure content is an array
-        const content = Array.isArray(data.content) ? data.content : [];
+      if (data) {
+        // --- FIX: ROBUST CONTENT PARSING ---
+        let contentRaw = data.content;
+
+        // If the DB column is TEXT, Supabase returns a JSON string. We must parse it.
+        if (typeof contentRaw === 'string') {
+            try {
+                contentRaw = JSON.parse(contentRaw);
+            } catch (e) {
+                console.error("Failed to parse book content JSON:", e);
+                contentRaw = []; // Fallback if corrupt
+            }
+        }
+        
+        // Ensure it's an array
+        const content = Array.isArray(contentRaw) ? contentRaw : [];
+        // -----------------------------------
 
         if (content.length > 0) {
           setLoadingStatus('Reconstructing pages...');
-          // Reconstruct textures from fabricJSON (same as shared book loader)
+          // Reconstruct textures from fabricJSON
           const pagesWithTextures = await reconstructBookTextures(content);
           setBookPages(pagesWithTextures);
         } else {
-          setBookPages(content);
+          setBookPages([]);
         }
 
         setCurrentBookId(data.id);
         
-        // --- FIX: LOAD METADATA BACK INTO BUILDER STATE ---
-        // This ensures subsequent saves include the coverUrl and Title
+        // Restore metadata so next save includes them
         setBuilderData(prev => ({ 
             ...prev, 
             title: data.title || '',
-            coverUrl: data.cover_image_url || '',
-            // If you have description in your atom/DB, add it here:
-            // description: data.description || '' 
+            coverUrl: data.cover_image_url || ''
         }));
-        // --------------------------------------------------
-
       }
     } catch (err) {
       console.error('Failed to load book:', err);
