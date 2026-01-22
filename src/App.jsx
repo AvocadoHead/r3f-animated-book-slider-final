@@ -12,20 +12,28 @@ import { displaySettingsAtom } from "./store/atoms";
 // Simple path parser
 const getRouteInfo = () => {
   const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
 
   // /auth/callback
   if (path === '/auth/callback') {
     return { route: 'auth-callback' };
   }
 
-  // /book/:id
-  const bookMatch = path.match(/^\/book\/([a-zA-Z0-9-]+)$/);
+  // Check for ?book=id query parameter
+  const bookIdFromQuery = params.get('book');
+  if (bookIdFromQuery) {
+    return { route: 'shared-book', bookId: bookIdFromQuery };
+  }
+
+  // /book/:id (path-based route)
+  const bookMatch = path.match(/^\\/book\\/([a-zA-Z0-9-]+)$/);
   if (bookMatch) {
     return { route: 'shared-book', bookId: bookMatch[1] };
   }
 
   // Default home
   return { route: 'home' };
+};
 };
 
 function App() {
