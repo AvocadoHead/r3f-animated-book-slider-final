@@ -48,8 +48,12 @@ export const useBookSave = (user, pages, title, currentBookId, setCurrentBookId,
     try {
       const savedBook = await saveBook(user.id, currentBookId, { pages, title });
 
-      if (savedBook && !currentBookId) {
-        setCurrentBookId(savedBook.id);
+      if (savedBook) {
+        // Always update bookId if it changed (handles new books AND stale ID recovery)
+        if (savedBook.id !== currentBookId) {
+          console.log('BookId updated:', currentBookId, '->', savedBook.id);
+          setCurrentBookId(savedBook.id);
+        }
       }
 
       lastSavedContentRef.current = contentKey;

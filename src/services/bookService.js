@@ -239,6 +239,7 @@ export const extractCoverUrl = (pages) => {
 
 /**
  * Save book with optimized content (main save function)
+ * Handles stale bookId by falling back to create if update fails
  */
 export const saveBook = async (userId, bookId, { pages, title }) => {
   if (!userId) {
@@ -259,20 +260,27 @@ export const saveBook = async (userId, bookId, { pages, title }) => {
                          lightweightContent?.[0]?.front?.fabricJSON ? 'has fabricJSON' : 'empty'
   });
 
+  const bookData = {
+    title,
+    content: lightweightContent,
+    coverUrl
+  };
+
   if (bookId) {
-    // Update existing - pass userId for RLS compliance
-    return updateBook(userId, bookId, {
-      title,
-      content: lightweightContent,
-      coverUrl
-    });
+    // Try to update existing book
+    try {
+      return await updateBook(userId, bookId, bookData);
+    } catch (err) {
+      // If update fails (stale ID, book deleted, or permission denied), create new book
+      console.warn('Update failed, falling back to create:', err.message);
+      const newBook = await createBook(userId, bookData);
+      // Flag that this is a new book (caller should update their bookId)
+      newBook._isNewBook = true;
+      return newBook;
+    }
   } else {
     // Create new
-    return createBook(userId, {
-      title,
-      content: lightweightContent,
-      coverUrl
-    });
+    return createBook(userId, bookData);
   }
 };
 
