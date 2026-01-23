@@ -329,16 +329,31 @@ export const UI = () => {
           <DisplaySettingsPanel />
         </div>
 
-        {/* Menu */}
+        {/* Share Button + Menu */}
         {user && !viewingShared && (
-          <div className="relative">
-            <button onClick={() => { setMenuOpen(!menuOpen); setActiveSubmenu(null); }} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg ${menuOpen ? 'bg-purple-600 text-white' : 'bg-white/90 backdrop-blur-xl text-gray-700 hover:bg-white'}`}>
-              {menuOpen ? (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-              )}
+          <div className="flex items-center gap-2">
+            {/* Share Button - Always visible */}
+            <button
+              onClick={() => { handleSaveAndShare(); }}
+              disabled={isSyncing}
+              className="h-12 px-4 rounded-xl flex items-center gap-2 transition-all shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium disabled:opacity-50"
+              title="Save & copy share link"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span className="text-sm">Share</span>
             </button>
+
+            {/* Menu Button */}
+            <div className="relative">
+              <button onClick={() => { setMenuOpen(!menuOpen); setActiveSubmenu(null); }} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg ${menuOpen ? 'bg-purple-600 text-white' : 'bg-white/90 backdrop-blur-xl text-gray-700 hover:bg-white'}`}>
+                {menuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                )}
+              </button>
 
             {menuOpen && (
               <div className="absolute top-14 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 min-w-[220px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -443,6 +458,7 @@ export const UI = () => {
                 </div>
               </div>
             )}
+          </div>
           </div>
         )}
       </div>
