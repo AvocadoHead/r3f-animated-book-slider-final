@@ -69,7 +69,7 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
 
   const saveHistory = () => {
       if(!fabricCanvasRef.current) return;
-      const json = fabricCanvasRef.current.toJSON(['videoMetadata']);
+      const json = fabricCanvasRef.current.toJSON(['videoMetadata', 'isVideo']);
       setHistory(prev => {
           const newHist = prev.slice(0, historyStep + 1);
           newHist.push(json);
@@ -92,8 +92,8 @@ export const EditorCanvas = ({ initialData, onSave, onClose, pageInfo, onNavigat
       if(!fabricCanvasRef.current) return;
       setIsLoading(true);
       setStatus('Saving...');
-      
-      const json = fabricCanvasRef.current.toJSON(['videoMetadata']);
+
+      const json = fabricCanvasRef.current.toJSON(['videoMetadata', 'isVideo']);
       
       try {
           if (initialData.texture) {

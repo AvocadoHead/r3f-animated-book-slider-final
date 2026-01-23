@@ -189,8 +189,8 @@ export const fullscreenMediaAtom = atom(null); // { type: 'video'|'image', url, 
 
 // Display settings (available to all users)
 export const displaySettingsAtom = atomWithStorage('display-settings', {
-  brightness: 1.0,    // 0.5 to 2.0
-  contrast: 1.0,      // 0.5 to 2.0
+  brightness: 1.0,    // 0.5 to 1.5 - light intensity
+  envIntensity: 0.5,  // 0 to 1 - environment reflections (0 = matte, 1 = shiny)
   wobble: 0.2,        // 0 to 1 (0 = no wobble, 1 = full wobble)
 });
 

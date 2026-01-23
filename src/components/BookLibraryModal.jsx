@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchUserBooks, deleteBook as deleteBookService, duplicateBook as duplicateBookService } from '../services/bookService';
 
-export const BookLibraryModal = ({ isOpen, onClose, user, onLoadBook, currentBookId }) => {
+export const BookLibraryModal = ({ isOpen, onClose, user, onLoadBook, onEditBook, currentBookId }) => {
   const [userBooks, setUserBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -97,6 +97,15 @@ export const BookLibraryModal = ({ isOpen, onClose, user, onLoadBook, currentBoo
                       className="flex-1 bg-purple-600 text-white py-1.5 rounded text-sm hover:bg-purple-700"
                     >
                       Open
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onEditBook(book.id); }}
+                      className="bg-green-100 text-green-600 px-3 rounded text-sm hover:bg-green-200"
+                      title="Edit Book"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                     </button>
                     <button
                       onClick={(e) => handleDuplicate(e, book.id)}

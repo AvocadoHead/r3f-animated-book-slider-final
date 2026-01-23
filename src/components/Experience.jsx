@@ -7,6 +7,7 @@ export const Experience = () => {
   const [displaySettings] = useAtom(displaySettingsAtom);
   const wobble = displaySettings.wobble;
   const brightness = displaySettings.brightness;
+  const envIntensity = displaySettings.envIntensity ?? 0.5;
 
   return (
     <>
@@ -24,7 +25,7 @@ export const Experience = () => {
         minDistance={1.5}
         maxDistance={12}
       />
-      <Environment preset="studio"></Environment>
+      <Environment preset="studio" environmentIntensity={envIntensity} />
 
       <ambientLight intensity={1.5 * brightness} />
       <directionalLight

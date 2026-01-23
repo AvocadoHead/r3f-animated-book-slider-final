@@ -20,9 +20,12 @@ export const FullscreenMediaModal = ({ media, onClose }) => {
         {media.type === 'video' && media.embedUrl && (
           <iframe
             src={media.embedUrl}
-            className="w-full h-full rounded-xl shadow-2xl"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            className="w-full h-full rounded-xl shadow-2xl bg-black"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
             allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            loading="eager"
+            title="Video player"
           />
         )}
         {media.type === 'image' && media.url && (

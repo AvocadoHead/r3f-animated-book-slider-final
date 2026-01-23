@@ -48,6 +48,7 @@ export const UI = () => {
   const [resetOpen, setResetOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSubmenu, setActiveSubmenu] = useState(null); // 'mybooks' | 'editbook' | null
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState('');
   const [loadingBook, setLoadingBook] = useState(false);
@@ -206,6 +207,12 @@ export const UI = () => {
     }
   };
 
+  // Edit book from library - load and open builder
+  const handleEditBook = async (bookId) => {
+    await handleLoadBook(bookId);
+    setBuilderOpen(true);
+  };
+
   // Editor Handlers
   const loadEditorFor = (pageIndex, side) => {
     if (pageIndex < 0 || pageIndex >= pages.length) return;
@@ -303,8 +310,21 @@ export const UI = () => {
           <button className="bg-white/80 hover:bg-white backdrop-blur-sm text-gray-700 px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all" onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}>
             {language === 'en' ? 'עב' : 'En'}
           </button>
-          <button className={`backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium shadow transition-all ${muted ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-white/80 hover:bg-white text-gray-700'}`} onClick={() => setMuted(!muted)} title={muted ? 'Unmute sounds' : 'Mute sounds'}>
-            {muted ? '🔇' : '🔊'}
+          <button
+            className={`w-10 h-10 rounded-full flex items-center justify-center shadow transition-all ${muted ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-white/80 hover:bg-white text-gray-700'}`}
+            onClick={() => setMuted(!muted)}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+          >
+            {muted ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+            )}
           </button>
           <DisplaySettingsPanel />
         </div>
@@ -312,7 +332,7 @@ export const UI = () => {
         {/* Menu */}
         {user && !viewingShared && (
           <div className="relative">
-            <button onClick={() => setMenuOpen(!menuOpen)} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg ${menuOpen ? 'bg-purple-600 text-white' : 'bg-white/90 backdrop-blur-xl text-gray-700 hover:bg-white'}`}>
+            <button onClick={() => { setMenuOpen(!menuOpen); setActiveSubmenu(null); }} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg ${menuOpen ? 'bg-purple-600 text-white' : 'bg-white/90 backdrop-blur-xl text-gray-700 hover:bg-white'}`}>
               {menuOpen ? (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               ) : (
@@ -321,7 +341,7 @@ export const UI = () => {
             </button>
 
             {menuOpen && (
-              <div className="absolute top-14 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 min-w-[200px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute top-14 right-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 min-w-[220px] border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
                 {/* Title Editor */}
                 <div className="px-4 py-2 border-b border-gray-200 mb-1">
                   {editingTitle ? (
@@ -337,36 +357,90 @@ export const UI = () => {
                       <span className="text-xs text-gray-400 uppercase tracking-wide">Book Title</span>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-gray-800 truncate">{builderData.title || 'Untitled Book'}</span>
-                        <span className="text-gray-400 group-hover:text-purple-600 transition-colors">✏️</span>
+                        <svg className="w-4 h-4 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
                       </div>
                     </button>
                   )}
                 </div>
 
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700" onClick={() => { setLibraryOpen(true); setMenuOpen(false); }}>My Books</button>
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700" onClick={() => { handleEditCurrentPage(); setMenuOpen(false); }}>Edit Page</button>
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700" onClick={() => { addPage(); setMenuOpen(false); }}>Add Page</button>
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700" onClick={() => { setBuilderOpen(true); setMenuOpen(false); }}>Book Builder</button>
+                {/* MY BOOKS - Main Item with submenu */}
+                <div className="relative">
+                  <button
+                    className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors text-sm font-medium flex items-center justify-between ${activeSubmenu === 'mybooks' ? 'bg-purple-100 text-purple-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    onClick={() => setActiveSubmenu(activeSubmenu === 'mybooks' ? null : 'mybooks')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      My Books
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${activeSubmenu === 'mybooks' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {activeSubmenu === 'mybooks' && (
+                    <div className="ml-4 mt-1 pl-2 border-l-2 border-purple-200 flex flex-col gap-1">
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm text-gray-600" onClick={() => { setLibraryOpen(true); setMenuOpen(false); setActiveSubmenu(null); }}>
+                        Browse Library
+                      </button>
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-green-50 transition-colors text-sm text-green-600 font-medium" onClick={() => { setResetOpen(true); setMenuOpen(false); setActiveSubmenu(null); }}>
+                        + New Book
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                <div className="h-px bg-gray-200 my-1"></div>
-
-                <button className={`text-left px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium flex items-center justify-between ${saveStatus === 'Save failed!' ? 'text-red-600' : saveStatus === 'Saved!' ? 'text-green-600' : hasUnsavedChanges ? 'text-orange-600' : 'text-gray-700'}`} onClick={() => handleSave(true)} disabled={isSyncing}>
-                  <span className="flex items-center gap-2">
-                    {saveStatus === 'Saving...' && <span className="inline-block w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></span>}
-                    {saveStatus === 'Saved!' && <span className="text-green-500">✓</span>}
-                    {saveStatus === 'Save failed!' && <span className="text-red-500">✕</span>}
-                    {!saveStatus && hasUnsavedChanges && <span className="text-orange-500">●</span>}
-                    {saveStatus || 'Save Book'}
-                  </span>
-                </button>
-
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-purple-50 transition-colors text-sm font-medium text-purple-600 flex items-center gap-2" onClick={handleSaveAndShare} disabled={isSyncing}>
-                  <span>🔗</span><span>Save & Share</span>
-                </button>
-
-                <div className="h-px bg-gray-200 my-1"></div>
-
-                <button className="text-left px-4 py-2.5 rounded-xl hover:bg-red-50 transition-colors text-sm font-medium text-red-600" onClick={() => { setResetOpen(true); setMenuOpen(false); }}>New Book</button>
+                {/* EDIT BOOK - Main Item with submenu */}
+                <div className="relative">
+                  <button
+                    className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors text-sm font-medium flex items-center justify-between ${activeSubmenu === 'editbook' ? 'bg-purple-100 text-purple-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    onClick={() => setActiveSubmenu(activeSubmenu === 'editbook' ? null : 'editbook')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Book
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${activeSubmenu === 'editbook' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {activeSubmenu === 'editbook' && (
+                    <div className="ml-4 mt-1 pl-2 border-l-2 border-purple-200 flex flex-col gap-1">
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm text-gray-600" onClick={() => { handleEditCurrentPage(); setMenuOpen(false); setActiveSubmenu(null); }}>
+                        Edit Current Page
+                      </button>
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm text-gray-600" onClick={() => { addPage(); setMenuOpen(false); setActiveSubmenu(null); }}>
+                        Add Page
+                      </button>
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm text-gray-600" onClick={() => { setBuilderOpen(true); setMenuOpen(false); setActiveSubmenu(null); }}>
+                        Book Builder
+                      </button>
+                      <div className="h-px bg-gray-200 my-1"></div>
+                      <button
+                        className={`text-left px-3 py-2 rounded-lg transition-colors text-sm font-medium flex items-center gap-2 ${saveStatus === 'Save failed!' ? 'text-red-600 hover:bg-red-50' : saveStatus === 'Saved!' ? 'text-green-600 hover:bg-green-50' : hasUnsavedChanges ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                        onClick={() => { handleSave(true); }}
+                        disabled={isSyncing}
+                      >
+                        {saveStatus === 'Saving...' && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span>}
+                        {saveStatus === 'Saved!' && <span>✓</span>}
+                        {saveStatus === 'Save failed!' && <span>✕</span>}
+                        {!saveStatus && hasUnsavedChanges && <span>●</span>}
+                        {saveStatus || 'Save Book'}
+                      </button>
+                      <button className="text-left px-3 py-2 rounded-lg hover:bg-purple-50 transition-colors text-sm text-purple-600 font-medium flex items-center gap-2" onClick={() => { handleSaveAndShare(); setMenuOpen(false); setActiveSubmenu(null); }} disabled={isSyncing}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                        Share Book
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -390,7 +464,7 @@ export const UI = () => {
 
       <BookBuilderModal isOpen={builderOpen} onClose={() => setBuilderOpen(false)} />
       <ResetBookModal isOpen={resetOpen} onClose={() => setResetOpen(false)} />
-      <BookLibraryModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} user={user} onLoadBook={handleLoadBook} currentBookId={currentBookId} />
+      <BookLibraryModal isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} user={user} onLoadBook={handleLoadBook} onEditBook={handleEditBook} currentBookId={currentBookId} />
 
       {/* Fullscreen Media (video) */}
       <FullscreenMediaButton media={currentPageMedia} onClick={() => setFullscreenMedia(currentPageMedia)} />
