@@ -4,7 +4,7 @@ import { createBlankTexture } from '../store/atoms';
 
 /**
  * Reconstruct a texture from fabricJSON
- * Used when loading shared books that only have fabricJSON saved
+ * Uses StaticCanvas for off-screen rendering (Fabric.js v6 compatible)
  */
 export const reconstructTextureFromFabricJSON = async (fabricJSON, backgroundTexture = null) => {
   // Return blank texture if no valid fabricJSON
@@ -17,53 +17,51 @@ export const reconstructTextureFromFabricJSON = async (fabricJSON, backgroundTex
     const timeout = setTimeout(() => {
       console.warn('Texture reconstruction timed out, using blank texture');
       resolve(createBlankTexture());
-    }, 30000); // 30 second timeout per page
+    }, 30000);
 
     try {
-      // Create an off-screen canvas
+      // Create an off-screen canvas element
       const canvasEl = document.createElement('canvas');
       canvasEl.width = PAGE_DIMENSIONS.width;
       canvasEl.height = PAGE_DIMENSIONS.height;
 
-      const fabricCanvas = new fabric.Canvas(canvasEl, {
+      // Use StaticCanvas for off-screen rendering (Fabric.js v6)
+      const fabricCanvas = new fabric.StaticCanvas(canvasEl, {
         width: PAGE_DIMENSIONS.width,
         height: PAGE_DIMENSIONS.height,
         backgroundColor: '#ffffff'
       });
 
-      // Load the fabricJSON content
-      fabricCanvas.loadFromJSON(fabricJSON, () => {
-        try {
-          fabricCanvas.renderAll();
+      // Fabric.js v6 loadFromJSON returns a Promise
+      fabricCanvas.loadFromJSON(fabricJSON)
+        .then(() => {
+          try {
+            fabricCanvas.renderAll();
 
-          // Export to data URL at full resolution
-          const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
-          const dataUrl = fabricCanvas.toDataURL({
-            format: 'png',
-            multiplier: multiplier,
-            quality: 0.9
-          });
+            // Export to data URL at full resolution
+            const multiplier = PAGE_DIMENSIONS.actualWidth / PAGE_DIMENSIONS.width;
+            const dataUrl = fabricCanvas.toDataURL({
+              format: 'png',
+              multiplier: multiplier,
+              quality: 0.9
+            });
 
-          clearTimeout(timeout);
-          fabricCanvas.dispose();
-          resolve(dataUrl);
-        } catch (exportErr) {
-          console.error('Failed to export canvas:', exportErr);
+            clearTimeout(timeout);
+            fabricCanvas.dispose();
+            resolve(dataUrl);
+          } catch (exportErr) {
+            console.error('Failed to export canvas:', exportErr);
+            clearTimeout(timeout);
+            fabricCanvas.dispose();
+            resolve(createBlankTexture());
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load fabricJSON:', err);
           clearTimeout(timeout);
           fabricCanvas.dispose();
           resolve(createBlankTexture());
-        }
-      }, (o, obj) => {
-        // Handle image objects - set crossOrigin for CORS
-        if (obj && obj.type === 'image') {
-          obj.set({ crossOrigin: 'anonymous' });
-        }
-      }).catch((err) => {
-        console.error('Failed to load fabricJSON:', err);
-        clearTimeout(timeout);
-        fabricCanvas.dispose();
-        resolve(createBlankTexture());
-      });
+        });
     } catch (err) {
       console.error('Failed to create canvas for reconstruction:', err);
       clearTimeout(timeout);
